@@ -1,0 +1,15 @@
+{
+  "name": "crewhaus-utilities",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Studio + IDE tooling for the CrewHaus meta-harness compiler: studio-server, studio-ui, wizard, scaffold-templates, plugin-sdk, trace-viewer, graph-visualizer, vscode-extension, jetbrains-plugin, crewhaus-playground. Depends on a sibling ../factory/ checkout for the compiler types.",
+  "workspaces": ["*"],
+  "devDependencies": {
+    "@types/bun": "^1.2.0",
+    "typescript": "^5.7.0"
+  },
+  "engines": {
+    "bun": ">=1.2.0"
+  }
+}

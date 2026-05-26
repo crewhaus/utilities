@@ -1,0 +1,15 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist"
+  },
+  "references": [
+    { "path": "../graph-visualizer" },
+    { "path": "../plugin-sdk" },
+    { "path": "../scaffold-templates" },
+    { "path": "../trace-viewer" },
+    { "path": "../wizard" }
+  ],
+  "include": ["src/**/*"]
+}
