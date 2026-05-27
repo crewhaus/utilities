@@ -8,7 +8,7 @@ Headless 5-question state machine for guided spec creation. Both `crewhaus init 
 bun add @crewhaus/wizard
 ```
 
-In the `demos/` workspace it resolves as `workspace:*`.
+In the `utilities/` workspace it resolves as `workspace:*`.
 
 ## The 5 questions
 

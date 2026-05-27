@@ -43,36 +43,47 @@ Each package lives at [`./<name>/`](./) with its own `README.md`, `package.json`
 
 ## Quickstart
 
-Start the studio-server (random port, dev mode) and open the embedded UI:
+Boot the studio-server with the bundled dev script:
 
 ```bash
-bun --filter '@crewhaus/studio-server' test          # smoke
-bun -e 'import {startStudioServer} from "@crewhaus/studio-server"; \
-        import {renderStudioHtml} from "@crewhaus/studio-ui"; \
-        const h = await startStudioServer({port: 4242}); \
-        console.log("studio on http://localhost:" + h.port);'
+bun install
+bun run studio
+# → studio on http://localhost:4242
 ```
 
-Browse to `http://localhost:4242/` for the built-in HTML stub. To serve the full vanilla-TS UI, point studio-server's `/` handler at `renderStudioHtml({})`.
-
-Run the browser playground:
+In a second shell, confirm it's live:
 
 ```bash
-cd utilities/crewhaus-playground
+curl -fsS http://localhost:4242/healthz   # → ok
+```
+
+`/` ships a minimal smoke-probe page. The full vanilla-TS SPA is exported by `@crewhaus/studio-ui` as `renderStudioHtml`; embed it inside your own `Bun.serve` handler — see [studio-ui/README.md](./studio-ui/).
+
+Run the browser playground (against the studio-server above):
+
+```bash
+cd crewhaus-playground
 PORT=3001 CREWHAUS_STUDIO_URL=http://localhost:4242 bun run play:server
 ```
 
 Install the VS Code extension locally:
 
 ```bash
-cd utilities/vscode-extension
+cd vscode-extension
 bun run build:vsce
 code --install-extension *.vsix
 ```
 
+## Verify
+
+```bash
+bun test                              # every workspace package (145 tests)
+cd studio-server && bun test          # just one package
+```
+
 ## Workspace setup
 
-`utilities/` is a bun workspaces tree — each top-level directory resolves as a `workspace:*` dependency. `@crewhaus/*` imports inside this tree map to the sibling `../factory/packages/*` checkout via the `paths` block in [tsconfig.base.json](./tsconfig.base.json); set `FACTORY_PATH` to override.
+`utilities/` is a bun workspaces tree — each top-level directory resolves as a `workspace:*` dependency. The `paths` block in [tsconfig.base.json](./tsconfig.base.json) maps the four factory-only imports (`@crewhaus/errors`, `@crewhaus/ir`, `@crewhaus/spec`, `@crewhaus/trace-event-bus`) to the sibling `../factory/packages/<name>/` checkout; every other `@crewhaus/*` import resolves to a workspace sibling here.
 
 Inter-package edges:
 

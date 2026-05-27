@@ -5,6 +5,10 @@
   "type": "module",
   "description": "Studio + IDE tooling for the CrewHaus meta-harness compiler: studio-server, studio-ui, wizard, scaffold-templates, plugin-sdk, trace-viewer, graph-visualizer, vscode-extension, jetbrains-plugin, crewhaus-playground. Depends on a sibling ../factory/ checkout for the compiler types.",
   "workspaces": ["*"],
+  "scripts": {
+    "studio": "bun --filter=./studio-server run start",
+    "test": "bun --filter='@crewhaus/*' test"
+  },
   "devDependencies": {
     "@types/bun": "^1.2.0",
     "typescript": "^5.7.0"
