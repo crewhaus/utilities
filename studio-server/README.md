@@ -4,7 +4,7 @@ Bun.serve daemon for the CrewHaus Studio — spec CRUD, wizard endpoints, live r
 
 ## Install
 
-Inside the `demos/` workspace it resolves as `workspace:*`; nothing to install. Standalone:
+Inside the `utilities/` workspace it resolves as `workspace:*`; nothing to install. Standalone:
 
 ```bash
 bun add @crewhaus/studio-server
@@ -93,7 +93,7 @@ Spec names must match `/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/i` (single alnum, or a
 
 - Consumes [wizard](../wizard/), [scaffold-templates](../scaffold-templates/), [plugin-sdk](../plugin-sdk/), [graph-visualizer](../graph-visualizer/) directly
 - Returns trace events shaped for [trace-viewer](../trace-viewer/) to render
-- The default UI is [studio-ui](../studio-ui/) — serve `renderStudioHtml({})` from `/` to replace the HTML stub
+- The default UI is [studio-ui](../studio-ui/) — `/` ships a minimal smoke-probe page; the full SPA is rendered by wiring `renderStudioHtml` into your own `Bun.serve` handler (see [studio-ui/README.md](../studio-ui/))
 
 ## Related
 
