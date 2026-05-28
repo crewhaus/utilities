@@ -13,3 +13,7 @@ build/
 # JetBrains plugin Gradle artifacts
 **/.gradle/
 **/build/
+
+# Demo script outputs
+graph-visualizer/graph.svg
+vscode-extension/*.vsix

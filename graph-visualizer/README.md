@@ -2,13 +2,19 @@
 
 Deterministic 2D layout for `IrGraphV0`. Layered BFS positioning (entry on the left, columns to the right, rows sorted by IR insertion order) — same graph → same positions ±0 px. No D3 runtime dep; the UI's force simulation can refine these positions if it wants.
 
-## Install
+## Try it
 
 ```bash
-bun add @crewhaus/graph-visualizer
+cd graph-visualizer
+bun install
+bun run start
+# → lays out a 4-node sample graph (plan → execute → review → publish),
+#   writes graph.svg, prints positions + dimensions.
+# Open the result:
+open graph.svg
 ```
 
-## Quick start
+## Programmatic use
 
 ```typescript
 import {
@@ -84,6 +90,12 @@ History is capped at 1000 entries (oldest dropped).
 - [studio-server](../studio-server/) — `GET /api/graph-layout/:specName` returns this layout (JSON or SVG via `Accept: image/svg`)
 - [studio-ui](../studio-ui/) — embeds the SVG and updates `data-state` from SSE
 - [trace-viewer](../trace-viewer/) — sibling layout package for `TraceEvent[]`
+
+## Related
+
+- Source: [src/index.ts](./src/index.ts), [src/scripts/start.ts](./src/scripts/start.ts)
+
+> Inside this workspace, resolves as `workspace:*`. Not yet on npm.
 
 ## Related
 

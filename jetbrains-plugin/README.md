@@ -2,17 +2,23 @@
 
 IntelliJ / WebStorm / PyCharm parity for the [vscode-extension](../vscode-extension/). Schema-driven autocomplete on `crewhaus.yaml`, three run-configuration types, and a spec-registry tool window. Plugin ID `io.crewhaus.jetbrains-plugin`.
 
-## Build
+## Try it
 
 ```bash
-cd utilities/jetbrains-plugin
+cd jetbrains-plugin
+bun install
+bun run build:plugin
+# → "JBR_BIN not set; gradle build skipped" (expected on a fresh checkout)
+```
+
+The build delegates to `./gradlew buildPlugin`. To actually produce a `.zip`, point `JBR_BIN` at a [JetBrains Runtime](https://github.com/JetBrains/JetBrainsRuntime) install:
+
+```bash
 JBR_BIN=/path/to/jbr bun run build:plugin
 # → emits build/distributions/<name>-<version>.zip
 ```
 
-The build delegates to `./gradlew buildPlugin`. Without `JBR_BIN` set, the script returns `{ skipped: true, reason: "JBR_BIN not set; …" }` so local dev doesn't fail — marketplace publishing runs in CI with the JBR-bundled `verifyPlugin` task.
-
-Install the resulting `.zip` via **Settings → Plugins → (gear icon) → Install Plugin from Disk…**.
+The skip-on-missing-JBR is deliberate: local dev tests the bun-side manifest validation (`bun test`) without requiring Gradle. Marketplace publishing runs in CI with the JBR-bundled `verifyPlugin` task. Install the resulting `.zip` via **Settings → Plugins → (gear icon) → Install Plugin from Disk…**.
 
 ## What it provides
 
@@ -47,3 +53,5 @@ src/
 
 - Sibling: [vscode-extension](../vscode-extension/) — shares the spec-schema generator
 - Source: [src/main/resources/META-INF/plugin.xml](./src/main/resources/META-INF/plugin.xml), [src/scripts/build.ts](./src/scripts/build.ts)
+
+> Inside this workspace, resolves as `workspace:*`. Not yet on the marketplace.

@@ -2,15 +2,22 @@
 
 Browser-based REPL for the CrewHaus meta-harness — Monaco editor + live trace timeline + per-session quota + cross-tenant isolation. Local dev runs against a stubbed gateway; production mounts behind §20 gateway-server with mTLS + JWT.
 
-## Run it
+## Try it
 
 ```bash
-cd utilities/crewhaus-playground
-PORT=3001 CREWHAUS_STUDIO_URL=http://localhost:4242 bun run play:server
+cd crewhaus-playground
+bun install
+bun run start
 # → [playground] listening on http://localhost:3001
 ```
 
-The CLI entry ([src/cli.ts](./src/cli.ts)) stands up a Bun.serve listener with a stubbed `GatewayClient` that returns `{ runId: "stub-…", status: "queued", traceUrl: "/trace/<tier>" }` for every spec submission. Swap the stub for a real client by importing `createPlayground` directly.
+Visit http://localhost:3001/ for the SPA shell (Monaco editor + trace timeline). Override the port and the studio backend URL with env vars:
+
+```bash
+PORT=3001 CREWHAUS_STUDIO_URL=http://localhost:4242 bun run start
+```
+
+`bun run play:server` is kept as an alias for backwards compatibility. The CLI entry ([src/cli.ts](./src/cli.ts)) stands up a Bun.serve listener with a stubbed `GatewayClient` that returns `{ runId: "stub-…", status: "queued", traceUrl: "/trace/<tier>" }` for every spec submission. Swap the stub for a real client by importing `createPlayground` directly.
 
 ## Programmatic use
 
@@ -69,3 +76,5 @@ Per-session quota is tracked via a `sid` cookie (auto-generated for anonymous br
 ## Related
 
 - Source: [src/index.ts](./src/index.ts), [src/server.ts](./src/server.ts), [src/cli.ts](./src/cli.ts)
+
+> Inside this workspace, resolves as `workspace:*`. Not yet on npm.

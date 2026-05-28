@@ -2,20 +2,28 @@
 
 Vanilla-TS UI for [studio-server](../studio-server/) — no build step, no framework. Exports HTML + inlined JS as strings. Three tabs: Specs (list + edit), Wizard (5-question flow), Plugins (discovery).
 
-## Install
+## Try it
 
 ```bash
-bun add @crewhaus/studio-ui
+cd studio-ui
+bun install
+bun run start
+# → studio + UI on http://localhost:4243
+#   (backend on http://localhost:4242)
 ```
 
-## Serve it
+`bun run start` boots both `studio-server` (the daemon) and a UI listener that serves `renderStudioHtml` at `/`, proxying every other request to the backend. Open `http://localhost:4243/` for the full studio: Specs, Wizard, and Plugins tabs against a live API.
+
+`PORT` overrides the UI port (default 4243); `STUDIO_PORT` overrides the backend port (default 4242).
+
+## Programmatic use
 
 ```typescript
 import { startStudioServer } from "@crewhaus/studio-server";
 import { renderStudioHtml } from "@crewhaus/studio-ui";
 
-// Quickest path: hand-roll a tiny wrapper that serves the UI at "/"
-// and lets studio-server handle everything under /api.
+// Roll your own wrapper that serves the UI at "/" and lets
+// studio-server handle everything under /api.
 const html = renderStudioHtml({ title: "My Studio" });
 // → returns a complete <!doctype html> string with the JS bundle inlined
 ```
@@ -40,4 +48,6 @@ const html = renderStudioHtml({ title: "My Studio" });
 
 ## Related
 
-- Source: [src/index.ts](./src/index.ts)
+- Source: [src/index.ts](./src/index.ts), [src/scripts/start.ts](./src/scripts/start.ts)
+
+> Inside this workspace, resolves as `workspace:*`. Not yet on npm.

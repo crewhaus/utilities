@@ -2,10 +2,17 @@
 
 Typed surface for third-party Studio plugins. A plugin is a single TS module exporting `definePlugin({...})`; [studio-server](../studio-server/) lazy-loads them from `~/.crewhaus/plugins/<name>/index.ts` at boot.
 
-## Install
+## Try it
 
 ```bash
-bun add @crewhaus/plugin-sdk
+cd plugin-sdk
+bun install
+bun run start
+# → defines a sample plugin, validates it, runs permission probes:
+#   ALLOW  fs read:./data/foo.json
+#   DENY   fs read:./secrets/key
+#   ALLOW  net fetch:https://api.example.com/v1/users
+#   DENY   net fetch:https://malicious.com/
 ```
 
 ## Author a plugin
@@ -86,4 +93,6 @@ Patterns are minimatch-style globs (`**` recursive, `*` single-segment). Empty o
 
 ## Related
 
-- Source: [src/index.ts](./src/index.ts)
+- Source: [src/index.ts](./src/index.ts), [src/scripts/start.ts](./src/scripts/start.ts)
+
+> Inside this workspace, resolves as `workspace:*`. Not yet on npm.

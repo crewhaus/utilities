@@ -26,7 +26,10 @@
   },
   "scripts": {
     "test": "bun test src",
-    "build:vsce": "echo 'vsce package — production build runs in CI from this manifest'"
+    "build:vsce": "bun src/scripts/build-vsix.ts"
+  },
+  "devDependencies": {
+    "@vscode/vsce": "^3.0.0"
   },
   "activationEvents": [
     "onLanguage:yaml",

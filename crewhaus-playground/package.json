@@ -11,8 +11,9 @@
     "./server": "./src/server.ts"
   },
   "scripts": {
-    "test": "bun test src",
-    "play:server": "bun src/cli.ts"
+    "start": "bun src/cli.ts",
+    "play:server": "bun src/cli.ts",
+    "test": "bun test src"
   },
   "dependencies": {
     "@crewhaus/scaffold-templates": "workspace:*"
