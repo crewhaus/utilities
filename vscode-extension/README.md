@@ -42,7 +42,7 @@ Editor-title and explorer-context menus surface Run Spec / Continue Spec when th
 | Setting | Default | Purpose |
 |---|---|---|
 | `crewhaus.cliPath` | `"crewhaus"` | path (or PATH lookup) to the CLI binary |
-| `crewhaus.studioUrl` | `"http://localhost:4242"` | URL of the Section-31 [studio-server](../studio-server/) for the webview SSE |
+| `crewhaus.studioUrl` | `"http://localhost:4242"` | URL of the running [studio-server](../studio-server/) daemon for the webview SSE |
 
 ## YAML validation
 
