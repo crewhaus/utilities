@@ -2,15 +2,23 @@
 
 Bun.serve daemon for the CrewHaus Studio — spec CRUD, wizard endpoints, live run inspection over SSE, plugin discovery, and graph layout. The studio-ui (and any third-party UI) talks to this HTTP surface.
 
-## Install
-
-Inside the `utilities/` workspace it resolves as `workspace:*`; nothing to install. Standalone:
+## Try it
 
 ```bash
-bun add @crewhaus/studio-server
+cd studio-server
+bun install
+bun run start
+# → studio on http://localhost:4242
+#   Ctrl-C to stop
+
+# in another shell:
+curl -fsS http://localhost:4242/healthz   # → ok
+curl -fsS http://localhost:4242/api/templates | head -c 200
 ```
 
-## Quick start
+`PORT` and `STUDIO_WORKSPACE` override the listener port and the spec directory.
+
+## Programmatic use
 
 ```typescript
 import { startStudioServer } from "@crewhaus/studio-server";
@@ -97,4 +105,6 @@ Spec names must match `/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/i` (single alnum, or a
 
 ## Related
 
-- Source: [src/index.ts](./src/index.ts)
+- Source: [src/index.ts](./src/index.ts), [src/scripts/start.ts](./src/scripts/start.ts)
+
+> Inside this workspace, resolves as `workspace:*`. Not yet on npm.

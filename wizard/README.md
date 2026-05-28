@@ -2,13 +2,18 @@
 
 Headless 5-question state machine for guided spec creation. Both `crewhaus init --wizard` and the studio-ui "new spec" tab drive the same logic — the wizard returns YAML, never renders UI.
 
-## Install
+## Try it
 
 ```bash
-bun add @crewhaus/wizard
-```
+cd wizard
+bun install
+bun run start
+# Interactive: prompts for target / name / model / tools / permissionMode,
+# then prints the compiled crewhaus.yaml + .env.example to stdout.
 
-In the `utilities/` workspace it resolves as `workspace:*`.
+# Or pipe answers in for a non-interactive demo:
+printf "cli\nmy-coder\nclaude-sonnet-4-6\nread,write,bash\ndefault\n" | bun run start
+```
 
 ## The 5 questions
 
@@ -18,7 +23,7 @@ In the `utilities/` workspace it resolves as `workspace:*`.
 4. **tools** — comma-separated tool list (only applicable for `cli` / `research` / `batch`; other targets use shape-specific defaults)
 5. **permissionMode** — `default | plan | auto`
 
-## Quick start
+## Programmatic use
 
 ```typescript
 import {
@@ -84,4 +89,6 @@ Each target maps to one [scaffold-templates](../scaffold-templates/) entry:
 
 ## Related
 
-- Source: [src/index.ts](./src/index.ts)
+- Source: [src/index.ts](./src/index.ts), [src/scripts/start.ts](./src/scripts/start.ts)
+
+> Inside this workspace, resolves as `workspace:*`. Not yet on npm.

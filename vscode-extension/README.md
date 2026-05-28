@@ -2,12 +2,27 @@
 
 Spec authoring + run-from-editor for `crewhaus.yaml` files in VS Code. YAML schema validation, three commands, and a Run Spec terminal that shells to the configured CLI.
 
-## Install
+## Try it
+
+The fastest path is the F5 dev-host flow — no packaging needed:
 
 ```bash
-cd utilities/vscode-extension
-bun run build:vsce      # production VSIX build runs in CI
-code --install-extension *.vsix
+cd vscode-extension
+bun install
+code .          # open this folder in VS Code
+# then press F5
+```
+
+VS Code launches an **Extension Development Host** window with the extension already loaded. Open any `crewhaus.yaml` file there; right-click → **CrewHaus: Run Spec**, or run the commands from the palette (`Cmd-Shift-P`).
+
+Prefer a packaged install? Build a real `.vsix`:
+
+```bash
+cd vscode-extension
+bun install
+bun run build:vsce
+# → crewhaus-vscode-extension-0.0.0.vsix
+code --install-extension crewhaus-vscode-extension-*.vsix
 ```
 
 Requires VS Code `^1.80.0`. Activates on any `yaml` or `crewhaus-spec` file, or on the three commands below.
@@ -40,5 +55,8 @@ Declared in the manifest under `contributes.yamlValidation` — file pattern `cr
 
 ## Related
 
-- Source: [src/extension.ts](./src/extension.ts), [src/run-spec.ts](./src/run-spec.ts), [src/spec-schema.ts](./src/spec-schema.ts)
+- Source: [src/extension.ts](./src/extension.ts), [src/run-spec.ts](./src/run-spec.ts), [src/spec-schema.ts](./src/spec-schema.ts), [src/scripts/build-vsix.ts](./src/scripts/build-vsix.ts)
+- Dev launch: [.vscode/launch.json](./.vscode/launch.json) wires the F5 → Extension Development Host flow.
 - Sibling: [jetbrains-plugin](../jetbrains-plugin/) — IntelliJ / WebStorm / PyCharm parity
+
+> Inside this workspace, resolves as `workspace:*`. Not yet on the marketplace.

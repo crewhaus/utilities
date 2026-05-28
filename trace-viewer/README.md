@@ -2,13 +2,21 @@
 
 Pure-logic Gantt-layout helper for `TraceEvent[]` corpora. Pairs `*_start` and `*_end` events on `spanId`, returns a flat `TimelineSpan[]` with absolute t0/t1 plus parent links — renderer-agnostic so studio-ui can draw Gantt bars and eval-report can embed inline drilldowns.
 
-## Install
+## Try it
 
 ```bash
-bun add @crewhaus/trace-viewer
+cd trace-viewer
+bun install
+bun run start
+# → builds a Timeline from a 5-span fixture and renders an ASCII Gantt:
+#   turn: turn ?            |████████████████████████████████████████|  2450ms
+#     model: claude-sonnet  |███████████████████                     |  1150ms
+#     tool: Read            |                    █                   |  60ms
+#     tool: Bash            |                     █████████          |  580ms
+#     model: claude-sonnet  |                               ███████  |  450ms
 ```
 
-## Quick start
+## Programmatic use
 
 ```typescript
 import { buildTimeline, replay, drilldownSpan } from "@crewhaus/trace-viewer";
@@ -78,4 +86,6 @@ For point events, `t1 === t0`. Unpaired start events get `t1 === t0` until the m
 
 ## Related
 
-- Source: [src/index.ts](./src/index.ts)
+- Source: [src/index.ts](./src/index.ts), [src/scripts/start.ts](./src/scripts/start.ts)
+
+> Inside this workspace, resolves as `workspace:*`. Not yet on npm.

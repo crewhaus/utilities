@@ -4,21 +4,22 @@ Studio + IDE tooling for the CrewHaus meta-harness compiler — extracted from `
 
 ## Layout
 
-```
-utilities/
-  studio-server/            HTTP daemon — spec CRUD, run SSE, plugin discovery
-  studio-ui/                vanilla-TS UI served by studio-server
-  wizard/                   5-question state machine for guided spec creation
-  scaffold-templates/       built-in spec YAML per target shape
-  plugin-sdk/               typed surface for third-party studio plugins
-  trace-viewer/             Gantt-shaped timeline from TraceEvent[]
-  graph-visualizer/         layered DAG layout for IrGraphV0
-  vscode-extension/         spec authoring + Run Spec for VS Code
-  jetbrains-plugin/         IntelliJ / WebStorm / PyCharm parity
-  crewhaus-playground/      browser REPL with Monaco + live trace
-```
+Every package has a runnable `bun run start` (or near equivalent) that demonstrates it from a clean checkout. Run from inside `<package>/`:
 
-Each package lives at [`./<name>/`](./) with its own `README.md`, `package.json`, `src/`, and `tsconfig.json`.
+| Package | What it is | Run it with |
+|---|---|---|
+| [studio-server](./studio-server/)         | HTTP daemon — spec CRUD, run SSE, plugin discovery | `bun run start` → `:4242` |
+| [studio-ui](./studio-ui/)                 | vanilla-TS UI bundled with studio-server           | `bun run start` → `:4243` (server + UI) |
+| [wizard](./wizard/)                       | 5-question state machine for guided spec creation  | `bun run start` (interactive CLI) |
+| [scaffold-templates](./scaffold-templates/) | built-in spec YAML per target shape              | `bun run start [id]` (catalog / show one) |
+| [plugin-sdk](./plugin-sdk/)               | typed surface for third-party studio plugins       | `bun run start` (define + validate demo) |
+| [trace-viewer](./trace-viewer/)           | Gantt-shaped timeline from `TraceEvent[]`          | `bun run start` (ASCII Gantt of a fixture) |
+| [graph-visualizer](./graph-visualizer/)   | layered DAG layout for `IrGraphV0`                 | `bun run start` (writes `graph.svg`) |
+| [vscode-extension](./vscode-extension/)   | spec authoring + Run Spec for VS Code              | open in VS Code, press F5 (or `bun run build:vsce`) |
+| [jetbrains-plugin](./jetbrains-plugin/)   | IntelliJ / WebStorm / PyCharm parity               | `bun run build:plugin` (gated on `JBR_BIN`) |
+| [crewhaus-playground](./crewhaus-playground/) | browser REPL with Monaco + live trace          | `bun run start` → `:3001` |
+
+Each package has its own `README.md`, `package.json`, `src/`, and `tsconfig.json`.
 
 ## Package roles
 
@@ -43,35 +44,26 @@ Each package lives at [`./<name>/`](./) with its own `README.md`, `package.json`
 
 ## Quickstart
 
-Boot the studio-server with the bundled dev script:
+Boot the full studio (daemon + UI) with the bundled dev script:
 
 ```bash
 bun install
 bun run studio
-# → studio on http://localhost:4242
+# → studio + UI on http://localhost:4243
+#   (backend on http://localhost:4242)
 ```
 
-In a second shell, confirm it's live:
+Open http://localhost:4243/ for the Specs / Wizard / Plugins UI talking to a live API. In a second shell, confirm the backend is live:
 
 ```bash
 curl -fsS http://localhost:4242/healthz   # → ok
 ```
 
-`/` ships a minimal smoke-probe page. The full vanilla-TS SPA is exported by `@crewhaus/studio-ui` as `renderStudioHtml`; embed it inside your own `Bun.serve` handler — see [studio-ui/README.md](./studio-ui/).
-
-Run the browser playground (against the studio-server above):
+Want just the lean daemon (no UI), the playground, or the IDE extension? Each package has its own `bun run start` (see the table above). For example:
 
 ```bash
-cd crewhaus-playground
-PORT=3001 CREWHAUS_STUDIO_URL=http://localhost:4242 bun run play:server
-```
-
-Install the VS Code extension locally:
-
-```bash
-cd vscode-extension
-bun run build:vsce
-code --install-extension *.vsix
+cd crewhaus-playground && bun run start          # browser REPL on :3001
+cd vscode-extension    && bun run build:vsce     # produces a .vsix to install
 ```
 
 ## Verify
@@ -88,10 +80,11 @@ cd studio-server && bun test          # just one package
 Inter-package edges:
 
 - `studio-server` → `wizard`, `scaffold-templates`, `plugin-sdk`, `trace-viewer`, `graph-visualizer`
+- `studio-ui` → `studio-server` (the `bun run start` script bundles both)
 - `wizard` → `scaffold-templates`
 - `crewhaus-playground` → `scaffold-templates`
 - `jetbrains-plugin` → `vscode-extension` (shares the spec-schema generator)
-- `studio-ui`, `trace-viewer`, `graph-visualizer`, `scaffold-templates`, `plugin-sdk` — leaf packages, no sibling deps
+- `trace-viewer`, `graph-visualizer`, `scaffold-templates`, `plugin-sdk` — leaf packages, no sibling deps
 
 ## Related docs
 

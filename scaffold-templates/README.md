@@ -2,13 +2,16 @@
 
 Pure data module — ten built-in `crewhaus.yaml` templates, one per target shape. Returned as YAML strings (not parsed objects) so comments and formatting survive scaffolding.
 
-## Install
+## Try it
 
 ```bash
-bun add @crewhaus/scaffold-templates
+cd scaffold-templates
+bun install
+bun run start                   # prints the catalog table (10 templates)
+bun run start cli-coding-agent  # prints the full YAML body for one template
 ```
 
-## Quick start
+## Programmatic use
 
 ```typescript
 import { listTemplates, getTemplate, TEMPLATES } from "@crewhaus/scaffold-templates";
@@ -53,4 +56,6 @@ console.log(t?.yaml); // ready to write to disk as crewhaus.yaml
 
 ## Related
 
-- Source: [src/index.ts](./src/index.ts)
+- Source: [src/index.ts](./src/index.ts), [src/scripts/start.ts](./src/scripts/start.ts)
+
+> Inside this workspace, resolves as `workspace:*`. Not yet on npm.
