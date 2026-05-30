@@ -1,7 +1,6 @@
 {
   "name": "@crewhaus/plugin-sdk",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.1",
   "type": "module",
   "description": "Studio plugin SDK — typed surface for third-party panes / hooks / renderers (Section 26 Studio)",
   "main": "src/index.ts",
@@ -12,5 +11,29 @@
   "scripts": {
     "start": "bun src/scripts/start.ts",
     "test": "bun test src"
-  }
+  },
+  "license": "Apache-2.0",
+  "author": {
+    "name": "Max Meier",
+    "email": "max@studiomax.io",
+    "url": "https://studiomax.io"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/crewhaus/utilities.git",
+    "directory": "plugin-sdk"
+  },
+  "homepage": "https://github.com/crewhaus/utilities/tree/main/plugin-sdk#readme",
+  "bugs": {
+    "url": "https://github.com/crewhaus/utilities/issues"
+  },
+  "publishConfig": {
+    "access": "restricted"
+  },
+  "files": [
+    "src",
+    "README.md",
+    "LICENSE",
+    "NOTICE"
+  ]
 }

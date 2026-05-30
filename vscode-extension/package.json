@@ -2,18 +2,26 @@
   "name": "@crewhaus/vscode-extension",
   "displayName": "CrewHaus",
   "description": "Spec authoring + inline trace inspection + run-from-editor for the CrewHaus meta-harness compiler (Section 35).",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.1",
   "type": "module",
   "publisher": "crewhaus",
-  "license": "MIT",
-  "homepage": "https://github.com/crewhaus/factory",
+  "license": "Apache-2.0",
+  "homepage": "https://github.com/crewhaus/utilities/tree/main/vscode-extension#readme",
   "repository": {
     "type": "git",
-    "url": "https://github.com/crewhaus/factory.git"
+    "url": "git+https://github.com/crewhaus/utilities.git",
+    "directory": "vscode-extension"
   },
-  "categories": ["Programming Languages", "Linters", "Other"],
-  "keywords": ["llm", "agent", "crewhaus"],
+  "categories": [
+    "Programming Languages",
+    "Linters",
+    "Other"
+  ],
+  "keywords": [
+    "llm",
+    "agent",
+    "crewhaus"
+  ],
   "engines": {
     "vscode": "^1.80.0"
   },
@@ -42,15 +50,25 @@
     "languages": [
       {
         "id": "crewhaus-spec",
-        "aliases": ["CrewHaus Spec", "crewhaus.yaml"],
-        "extensions": [".crewhaus.yaml"],
-        "filenamePatterns": ["crewhaus.yaml"],
+        "aliases": [
+          "CrewHaus Spec",
+          "crewhaus.yaml"
+        ],
+        "extensions": [
+          ".crewhaus.yaml"
+        ],
+        "filenamePatterns": [
+          "crewhaus.yaml"
+        ],
         "configuration": "./language-configuration.json"
       }
     ],
     "yamlValidation": [
       {
-        "fileMatch": ["crewhaus.yaml", "*.crewhaus.yaml"],
+        "fileMatch": [
+          "crewhaus.yaml",
+          "*.crewhaus.yaml"
+        ],
         "url": "./schemas/spec.json"
       }
     ],
@@ -104,5 +122,22 @@
         }
       }
     }
-  }
+  },
+  "author": {
+    "name": "Max Meier",
+    "email": "max@studiomax.io",
+    "url": "https://studiomax.io"
+  },
+  "bugs": {
+    "url": "https://github.com/crewhaus/utilities/issues"
+  },
+  "publishConfig": {
+    "access": "restricted"
+  },
+  "files": [
+    "src",
+    "README.md",
+    "LICENSE",
+    "NOTICE"
+  ]
 }

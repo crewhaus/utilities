@@ -1,7 +1,6 @@
 {
   "name": "@crewhaus/studio-server",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.1",
   "type": "module",
   "description": "Bun.serve daemon — spec CRUD, run inspection (SSE), eval-result inspection, plugin discovery (Section 26 Studio)",
   "main": "src/index.ts",
@@ -19,5 +18,29 @@
     "@crewhaus/scaffold-templates": "workspace:*",
     "@crewhaus/trace-viewer": "workspace:*",
     "@crewhaus/wizard": "workspace:*"
-  }
+  },
+  "license": "Apache-2.0",
+  "author": {
+    "name": "Max Meier",
+    "email": "max@studiomax.io",
+    "url": "https://studiomax.io"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/crewhaus/utilities.git",
+    "directory": "studio-server"
+  },
+  "homepage": "https://github.com/crewhaus/utilities/tree/main/studio-server#readme",
+  "bugs": {
+    "url": "https://github.com/crewhaus/utilities/issues"
+  },
+  "publishConfig": {
+    "access": "restricted"
+  },
+  "files": [
+    "src",
+    "README.md",
+    "LICENSE",
+    "NOTICE"
+  ]
 }

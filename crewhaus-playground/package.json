@@ -1,7 +1,6 @@
 {
   "name": "@crewhaus/crewhaus-playground",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.1",
   "type": "module",
   "description": "Browser-based REPL for the CrewHaus meta-harness compiler — Monaco editor + live trace timeline + OAuth quota + cross-tenant isolation (Section 35).",
   "main": "src/index.ts",
@@ -17,5 +16,29 @@
   },
   "dependencies": {
     "@crewhaus/scaffold-templates": "workspace:*"
-  }
+  },
+  "license": "Apache-2.0",
+  "author": {
+    "name": "Max Meier",
+    "email": "max@studiomax.io",
+    "url": "https://studiomax.io"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/crewhaus/utilities.git",
+    "directory": "crewhaus-playground"
+  },
+  "homepage": "https://github.com/crewhaus/utilities/tree/main/crewhaus-playground#readme",
+  "bugs": {
+    "url": "https://github.com/crewhaus/utilities/issues"
+  },
+  "publishConfig": {
+    "access": "restricted"
+  },
+  "files": [
+    "src",
+    "README.md",
+    "LICENSE",
+    "NOTICE"
+  ]
 }
