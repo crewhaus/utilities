@@ -162,6 +162,26 @@ describe("graph-visualizer v1 — Section 31 live mode", () => {
     expect(state.states["execute"]).toBe("errored");
   });
 
+  test("node_error → errored with the error message captured as the reason", () => {
+    const layout = layoutGraph(baseIr);
+    let state = initialLiveState(layout);
+    state = applyEvent(state, { kind: "node_start", node: "execute", ts: "t1" });
+    expect(state.states["execute"]).toBe("running");
+    state = applyEvent(state, {
+      kind: "node_error",
+      node: "execute",
+      message: "boom: tool exploded",
+      ts: "t2",
+    });
+    expect(state.states["execute"]).toBe("errored");
+    expect(state.reasons["execute"]).toBe("boom: tool exploded");
+    // The transition is recorded in history with the new state + ts.
+    const last = state.history[state.history.length - 1];
+    expect(last).toEqual({ node: "execute", state: "errored", ts: "t2" });
+    // Other nodes are untouched.
+    expect(state.states["plan"]).toBe("idle");
+  });
+
   test("history is bounded at 1000 entries", () => {
     const layout = layoutGraph(baseIr);
     let state = initialLiveState(layout);

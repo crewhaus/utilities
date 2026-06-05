@@ -3,7 +3,12 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { buildRunSpecArgv, resolveSubAgentDefinition, studioWebviewUrl } from "./run-spec";
+import {
+  _testFixturePath,
+  buildRunSpecArgv,
+  resolveSubAgentDefinition,
+  studioWebviewUrl,
+} from "./run-spec";
 
 describe("buildRunSpecArgv (T1)", () => {
   test("happy path argv shape", () => {
@@ -103,6 +108,41 @@ You are a senior code reviewer. Focus on:
     }
   });
 
+  test("returns null when the sanitised sub-agent name is empty", () => {
+    const dir = mkdtempSync(join(tmpdir(), "vscode-ext-test-"));
+    try {
+      // A name made entirely of disallowed characters sanitises to "",
+      // which must short-circuit to null before any fs access.
+      const r = resolveSubAgentDefinition({
+        workspaceRoot: dir,
+        subAgentName: "////",
+      });
+      expect(r).toBeNull();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("falls back to empty frontmatter + raw body when no `---` block", () => {
+    const dir = mkdtempSync(join(tmpdir(), "vscode-ext-test-"));
+    try {
+      mkdirSync(join(dir, ".crewhaus", "sub-agents"), { recursive: true });
+      writeFileSync(
+        join(dir, ".crewhaus", "sub-agents", "plain.md"),
+        "no frontmatter here, just a body line\n",
+      );
+      const r = resolveSubAgentDefinition({
+        workspaceRoot: dir,
+        subAgentName: "plain",
+      });
+      expect(r).not.toBeNull();
+      expect(r?.frontmatter).toEqual({});
+      expect(r?.body).toContain("just a body line");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   test("rejects path-traversal-shaped sub-agent names", () => {
     const dir = mkdtempSync(join(tmpdir(), "vscode-ext-test-"));
     try {
@@ -118,5 +158,28 @@ You are a senior code reviewer. Focus on:
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe("studioWebviewUrl — relative path traversal", () => {
+  test("emits ../ segments when the spec sits above the workspace root", () => {
+    // workspaceRoot is deeper than the spec, so `relative` must walk up.
+    const url = studioWebviewUrl({
+      studioUrl: "http://localhost:4242",
+      specPath: "/repo/crewhaus.yaml",
+      workspaceRoot: "/repo/packages/app",
+    });
+    expect(url).toContain("spec=..%2F..%2Fcrewhaus.yaml");
+  });
+});
+
+describe("_testFixturePath (T0)", () => {
+  test("resolves a sibling test-fixtures dir next to the module", () => {
+    const p = _testFixturePath();
+    expect(p.endsWith("/test-fixtures")).toBe(true);
+    // It is computed from this module's own URL, so it must live under
+    // the vscode-extension package (one level up from src/).
+    expect(p).toContain("vscode-extension");
+    expect(p).not.toContain("/src/");
   });
 });

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { type GatewayClient, createPlayground } from "./server";
+import { type GatewayClient, PlaygroundServerError, createPlayground } from "./server";
 
 const FAKE_GATEWAY: GatewayClient = {
   async startRun({ spec, tier }) {
@@ -190,5 +190,57 @@ describe("createPlayground — endpoints (T3)", () => {
       ),
     );
     expect(playground.quotaFor(scope).runs.length).toBe(1);
+  });
+
+  test("runStore() exposes the isolated run store and reflects persisted runs", async () => {
+    const playground = createPlayground({
+      studioUrl: "http://localhost:4242",
+      gatewayClient: FAKE_GATEWAY,
+    });
+    const store = playground.runStore();
+    // Same store instance on repeat access (it is created once per server).
+    expect(playground.runStore()).toBe(store);
+    const scope = { sessionId: "runstore-check-1234567" };
+    const start = await playground.fetch(
+      new Request(
+        "http://localhost/api/run",
+        withSession(scope.sessionId, {
+          method: "POST",
+          body: JSON.stringify({
+            spec: "name: x\ntarget: cli\nagent:\n  model: m\n  instructions: i\n",
+          }),
+          headers: { "Content-Type": "application/json" },
+        }),
+      ),
+    );
+    const { scopedRunId } = (await start.json()) as { scopedRunId: string };
+    // The run the endpoint persisted is readable straight from runStore().
+    const record = store.get(scope, scopedRunId);
+    expect(record?.status).toBe("queued");
+  });
+});
+
+describe("PlaygroundServerError", () => {
+  test("constructs with the config code, message, and no cause", () => {
+    const err = new PlaygroundServerError("gateway unreachable");
+    expect(err).toBeInstanceOf(Error);
+    expect(err).toBeInstanceOf(PlaygroundServerError);
+    expect(err.name).toBe("PlaygroundServerError");
+    expect(err.message).toBe("gateway unreachable");
+    expect(err.code).toBe("config");
+    expect(err.cause).toBeUndefined();
+  });
+
+  test("threads a cause through to the CrewhausError chain", () => {
+    const cause = new Error("socket closed");
+    const err = new PlaygroundServerError("gateway failed", cause);
+    expect(err.cause).toBe(cause);
+    expect(err.code).toBe("config");
+    expect(err.toJSON()).toEqual({
+      name: "PlaygroundServerError",
+      code: "config",
+      message: "gateway failed",
+      cause: { name: "Error", message: "socket closed" },
+    });
   });
 });

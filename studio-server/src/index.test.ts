@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { startStudioServer } from "./index.js";
+import { StudioServerError, startStudioServer } from "./index.js";
 
 function newRoot(): string {
   return mkdtempSync(join(tmpdir(), "studio-server-"));
@@ -222,6 +222,36 @@ describe("studio-server (T3 — endpoint contract)", () => {
     }
   });
 
+  test("GET /api/specs returns specs sorted by name (exercises the listSpecs comparator)", async () => {
+    const root = newRoot();
+    const server = await startStudioServer({
+      workspaceDir: root,
+      pluginRoot: join(root, "plugins"),
+    });
+    try {
+      const mk = (name: string) =>
+        fetch(`http://localhost:${server.port}/api/specs`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            name,
+            yaml: `name: ${name}\ntarget: cli\nagent:\n  model: m\n  instructions: i\n`,
+          }),
+        });
+      // Create out of alphabetical order so the comparator has to reorder.
+      expect((await mk("zeta")).status).toBe(201);
+      expect((await mk("alpha")).status).toBe(201);
+      expect((await mk("mid")).status).toBe(201);
+      const list = await fetch(`http://localhost:${server.port}/api/specs`).then(
+        (r) => r.json() as Promise<{ specs: Array<{ name: string; target: string }> }>,
+      );
+      expect(list.specs.map((s) => s.name)).toEqual(["alpha", "mid", "zeta"]);
+    } finally {
+      await server.stop();
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   test("DELETE /api/specs/:name removes the spec", async () => {
     const root = newRoot();
     const server = await startStudioServer({
@@ -428,5 +458,31 @@ describe("studio-server v1 — Section 31 endpoints", () => {
       await server.stop();
       rmSync(root, { recursive: true, force: true });
     }
+  });
+});
+
+describe("StudioServerError", () => {
+  test("constructs with the config code, message, and no cause", () => {
+    const err = new StudioServerError("unsafe spec name: ../etc");
+    expect(err).toBeInstanceOf(Error);
+    expect(err).toBeInstanceOf(StudioServerError);
+    expect(err.name).toBe("StudioServerError");
+    expect(err.message).toBe("unsafe spec name: ../etc");
+    expect(err.code).toBe("config");
+    expect(err.cause).toBeUndefined();
+  });
+
+  test("threads a cause through to the CrewhausError chain", () => {
+    const cause = new Error("root cause");
+    const err = new StudioServerError("write failed", cause);
+    expect(err.cause).toBe(cause);
+    expect(err.code).toBe("config");
+    // toJSON (inherited from CrewhausError) serializes the cause chain.
+    expect(err.toJSON()).toEqual({
+      name: "StudioServerError",
+      code: "config",
+      message: "write failed",
+      cause: { name: "Error", message: "root cause" },
+    });
   });
 });

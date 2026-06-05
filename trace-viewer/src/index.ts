@@ -60,7 +60,17 @@ function tsMs(iso: string): number {
   return Number.isFinite(t) ? t : 0;
 }
 
-function spanLabel(kind: SpanKind, ev: TraceEvent): string {
+/**
+ * Build a short human-readable label for a span.
+ *
+ * Each `case` first matches the event kind that naturally produces this
+ * `SpanKind` and renders the rich label (e.g. `"tool: WebFetch"`). The
+ * trailing `return "<kind>"` is a defensive fallback for the case where a
+ * caller passes a `SpanKind` that does not line up with `ev.kind` — it keeps
+ * the function total so a mismatched pair degrades to the bare kind name
+ * instead of throwing. Exported so this fallback contract is unit-testable.
+ */
+export function spanLabel(kind: SpanKind, ev: TraceEvent): string {
   switch (kind) {
     case "model":
       if (ev.kind === "model_request" || ev.kind === "model_response")
@@ -133,25 +143,6 @@ function startKind(eventKind: string): SpanKind | undefined {
   }
 }
 
-function endKindForStart(eventKind: string): string | undefined {
-  switch (eventKind) {
-    case "turn_start":
-      return "turn_end";
-    case "model_request":
-      return "model_response";
-    case "tool_call_start":
-      return "tool_call_end";
-    case "mcp_call_start":
-      return "mcp_call_end";
-    case "sub_agent_start":
-      return "sub_agent_end";
-    case "role_start":
-      return "role_end";
-    default:
-      return undefined;
-  }
-}
-
 function pointKind(eventKind: string): SpanKind | undefined {
   switch (eventKind) {
     case "hook_fired":
@@ -187,9 +178,6 @@ export function buildTimeline(events: ReadonlyArray<TraceEvent>): Timeline {
     if (sk !== undefined) {
       startsBySpanId.set(r.ev.spanId, r);
       continue;
-    }
-    if (endKindForStart(r.ev.kind) !== undefined) {
-      // Already handled above
     }
     if (
       r.ev.kind === "turn_end" ||
