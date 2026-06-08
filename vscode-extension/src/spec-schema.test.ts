@@ -13,7 +13,7 @@ describe("spec-schema (T1)", () => {
   test("returns a JSON Schema with the right $id + draft", () => {
     const schema = getSpecJsonSchema();
     expect(schema.$schema).toBe("http://json-schema.org/draft-07/schema#");
-    expect(schema.$id).toContain("crewhaus.io");
+    expect(schema.$id).toContain("crewhaus.ai");
     expect(schema.oneOf.length).toBeGreaterThanOrEqual(12);
   });
 

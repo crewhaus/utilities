@@ -157,7 +157,7 @@ function shapeWithTarget(target: string, extra: Record<string, unknown> = {}) {
 
 export const specSchemaJson = {
   $schema: "http://json-schema.org/draft-07/schema#",
-  $id: "https://crewhaus.io/schemas/spec.json",
+  $id: "https://crewhaus.ai/schemas/spec.json",
   title: "CrewHaus Spec",
   description: "v0 spec discriminated on `target`. Mirrors @crewhaus/spec.",
   oneOf: [

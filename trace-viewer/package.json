@@ -28,7 +28,7 @@
     "url": "https://github.com/crewhaus/utilities/issues"
   },
   "publishConfig": {
-    "access": "restricted"
+    "access": "public"
   },
   "files": [
     "src",

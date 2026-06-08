@@ -1,7 +1,7 @@
 <idea-plugin>
   <id>io.crewhaus.jetbrains-plugin</id>
   <name>CrewHaus</name>
-  <vendor email="maintainers@crewhaus.io" url="https://github.com/crewhaus/crewhaus-factory">CrewHaus</vendor>
+  <vendor email="maintainers@crewhaus.ai" url="https://github.com/crewhaus/crewhaus-factory">CrewHaus</vendor>
 
   <description><![CDATA[
     <h2>CrewHaus for IntelliJ / WebStorm / PyCharm</h2>
