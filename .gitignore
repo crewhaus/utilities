@@ -17,3 +17,6 @@ build/
 # Demo script outputs
 graph-visualizer/graph.svg
 vscode-extension/*.vsix
+
+# TypeScript incremental build info
+*.tsbuildinfo
