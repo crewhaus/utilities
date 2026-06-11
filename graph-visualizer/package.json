@@ -1,6 +1,6 @@
 {
   "name": "@crewhaus/graph-visualizer",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "type": "module",
   "description": "Force-directed layout positioning for IrGraphV0 (Section 26 Studio)",
   "main": "src/index.ts",

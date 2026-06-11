@@ -1,6 +1,6 @@
 {
   "name": "@crewhaus/trace-viewer",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "type": "module",
   "description": "Embeddable trace timeline — Gantt-shaped layout from TraceEvent[] (Section 26 Studio)",
   "main": "src/index.ts",

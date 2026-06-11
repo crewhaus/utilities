@@ -1,6 +1,6 @@
 {
   "name": "@crewhaus/plugin-sdk",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "type": "module",
   "description": "Studio plugin SDK — typed surface for third-party panes / hooks / renderers (Section 26 Studio)",
   "main": "src/index.ts",
