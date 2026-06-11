@@ -43,7 +43,7 @@ import { join, resolve as resolvePath } from "node:path";
 import { CrewhausError } from "@crewhaus/errors";
 import { layoutGraph, renderSvg } from "@crewhaus/graph-visualizer";
 import type { IrGraphV0 } from "@crewhaus/ir";
-import { type StudioPluginDefinition, assertPluginPathsStaySandboxed } from "@crewhaus/plugin-sdk";
+import { type StudioPluginDefinition, assertPluginPathsStaySandboxed } from "@crewhaus/studio-plugin-sdk";
 import { type TemplateId, getTemplate, listTemplates } from "@crewhaus/scaffold-templates";
 import { parseSpec } from "@crewhaus/spec";
 import {

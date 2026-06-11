@@ -196,7 +196,7 @@ describe("studio-server (T3 — endpoint contract)", () => {
       fs.mkdirSync(fixtureDir, { recursive: true });
       // Fixture plugin without external imports — discoverPlugins
       // takes the default export verbatim. Real plugins use
-      // `definePlugin` from @crewhaus/plugin-sdk; tests skip that
+      // `definePlugin` from @crewhaus/studio-plugin-sdk; tests skip that
       // import so the workspace-resolution doesn't reach a tmpdir.
       fs.writeFileSync(
         join(fixtureDir, "index.ts"),

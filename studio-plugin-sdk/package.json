@@ -1,6 +1,6 @@
 {
-  "name": "@crewhaus/plugin-sdk",
-  "version": "0.1.2",
+  "name": "@crewhaus/studio-plugin-sdk",
+  "version": "0.1.3",
   "type": "module",
   "description": "Studio plugin SDK — typed surface for third-party panes / hooks / renderers (Section 26 Studio)",
   "main": "src/index.ts",
@@ -21,9 +21,9 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/crewhaus/utilities.git",
-    "directory": "plugin-sdk"
+    "directory": "studio-plugin-sdk"
   },
-  "homepage": "https://github.com/crewhaus/utilities/tree/main/plugin-sdk#readme",
+  "homepage": "https://github.com/crewhaus/utilities/tree/main/studio-plugin-sdk#readme",
   "bugs": {
     "url": "https://github.com/crewhaus/utilities/issues"
   },

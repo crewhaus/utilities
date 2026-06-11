@@ -11,62 +11,62 @@
     },
     "crewhaus-playground": {
       "name": "@crewhaus/crewhaus-playground",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "dependencies": {
         "@crewhaus/scaffold-templates": "workspace:*",
       },
     },
     "graph-visualizer": {
       "name": "@crewhaus/graph-visualizer",
-      "version": "0.1.2",
+      "version": "0.1.3",
     },
     "jetbrains-plugin": {
       "name": "@crewhaus/jetbrains-plugin",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "dependencies": {
         "@crewhaus/vscode-extension": "workspace:*",
       },
     },
-    "plugin-sdk": {
-      "name": "@crewhaus/plugin-sdk",
-      "version": "0.1.2",
-    },
     "scaffold-templates": {
       "name": "@crewhaus/scaffold-templates",
-      "version": "0.1.2",
+      "version": "0.1.3",
+    },
+    "studio-plugin-sdk": {
+      "name": "@crewhaus/studio-plugin-sdk",
+      "version": "0.1.3",
     },
     "studio-server": {
       "name": "@crewhaus/studio-server",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "dependencies": {
         "@crewhaus/graph-visualizer": "workspace:*",
-        "@crewhaus/plugin-sdk": "workspace:*",
         "@crewhaus/scaffold-templates": "workspace:*",
+        "@crewhaus/studio-plugin-sdk": "workspace:*",
         "@crewhaus/trace-viewer": "workspace:*",
         "@crewhaus/wizard": "workspace:*",
       },
     },
     "studio-ui": {
       "name": "@crewhaus/studio-ui",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "dependencies": {
         "@crewhaus/studio-server": "workspace:*",
       },
     },
     "trace-viewer": {
       "name": "@crewhaus/trace-viewer",
-      "version": "0.1.2",
+      "version": "0.1.3",
     },
     "vscode-extension": {
       "name": "@crewhaus/vscode-extension",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "devDependencies": {
         "@vscode/vsce": "^3.0.0",
       },
     },
     "wizard": {
       "name": "@crewhaus/wizard",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "dependencies": {
         "@crewhaus/scaffold-templates": "workspace:*",
       },
@@ -109,9 +109,9 @@
 
     "@crewhaus/jetbrains-plugin": ["@crewhaus/jetbrains-plugin@workspace:jetbrains-plugin"],
 
-    "@crewhaus/plugin-sdk": ["@crewhaus/plugin-sdk@workspace:plugin-sdk"],
-
     "@crewhaus/scaffold-templates": ["@crewhaus/scaffold-templates@workspace:scaffold-templates"],
+
+    "@crewhaus/studio-plugin-sdk": ["@crewhaus/studio-plugin-sdk@workspace:studio-plugin-sdk"],
 
     "@crewhaus/studio-server": ["@crewhaus/studio-server@workspace:studio-server"],
 
