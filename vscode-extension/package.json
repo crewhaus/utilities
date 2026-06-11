@@ -2,7 +2,7 @@
   "name": "@crewhaus/vscode-extension",
   "displayName": "CrewHaus",
   "description": "Spec authoring + inline trace inspection + run-from-editor for the CrewHaus meta-harness compiler (Section 35).",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "type": "module",
   "publisher": "crewhaus",
   "license": "Apache-2.0",

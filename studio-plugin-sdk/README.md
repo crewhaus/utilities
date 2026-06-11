@@ -1,4 +1,4 @@
-# `@crewhaus/plugin-sdk`
+# `@crewhaus/studio-plugin-sdk`
 
 Typed surface for third-party Studio plugins. A plugin is a single TS module exporting `definePlugin({...})`; [studio-server](../studio-server/) lazy-loads them from `~/.crewhaus/plugins/<name>/index.ts` at boot.
 
@@ -20,7 +20,7 @@ bun run start
 Create `~/.crewhaus/plugins/my-plugin/index.ts`:
 
 ```typescript
-import { definePlugin } from "@crewhaus/plugin-sdk";
+import { definePlugin } from "@crewhaus/studio-plugin-sdk";
 
 export default definePlugin({
   name: "my-plugin",

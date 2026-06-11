@@ -1,5 +1,5 @@
 /**
- * `bun run start` entry point for `@crewhaus/plugin-sdk`.
+ * `bun run start` entry point for `@crewhaus/studio-plugin-sdk`.
  *
  * Defines a sample studio plugin via `definePlugin`, validates its
  * permissions, and exercises the `isFsAllowed` / `isNetAllowed`
