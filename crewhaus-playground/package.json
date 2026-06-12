@@ -1,8 +1,8 @@
 {
   "name": "@crewhaus/crewhaus-playground",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "type": "module",
-  "description": "Browser-based REPL for the CrewHaus meta-harness compiler \u2014 Monaco editor + live trace timeline + OAuth quota + cross-tenant isolation (Section 35).",
+  "description": "Browser-based REPL for the CrewHaus meta-harness compiler — Monaco editor + live trace timeline + OAuth quota + cross-tenant isolation (Section 35).",
   "main": "src/index.ts",
   "types": "src/index.ts",
   "exports": {
