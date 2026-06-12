@@ -1,8 +1,8 @@
 {
-  "name": "@crewhaus/studio-server",
+  "name": "@crewhaus/grader-builder",
   "version": "0.1.3",
   "type": "module",
-  "description": "Bun.serve daemon — spec CRUD, run inspection (SSE), eval-result inspection, plugin discovery (Section 26 Studio)",
+  "description": "Guided eval-grader creation for eval specs (Section 26 Studio)",
   "main": "src/index.ts",
   "types": "src/index.ts",
   "exports": {
@@ -11,14 +11,6 @@
   "scripts": {
     "start": "bun src/scripts/start.ts",
     "test": "bun test src"
-  },
-  "dependencies": {
-    "@crewhaus/grader-builder": "workspace:*",
-    "@crewhaus/graph-visualizer": "workspace:*",
-    "@crewhaus/studio-plugin-sdk": "workspace:*",
-    "@crewhaus/scaffold-templates": "workspace:*",
-    "@crewhaus/trace-viewer": "workspace:*",
-    "@crewhaus/wizard": "workspace:*"
   },
   "license": "Apache-2.0",
   "author": {
@@ -29,9 +21,9 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/crewhaus/utilities.git",
-    "directory": "studio-server"
+    "directory": "grader-builder"
   },
-  "homepage": "https://github.com/crewhaus/utilities/tree/main/studio-server#readme",
+  "homepage": "https://github.com/crewhaus/utilities/tree/main/grader-builder#readme",
   "bugs": {
     "url": "https://github.com/crewhaus/utilities/issues"
   },

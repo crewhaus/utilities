@@ -65,6 +65,30 @@ describe("spec-schema (T1)", () => {
     const adapters = Object.keys(ch?.properties?.channels?.properties ?? {});
     expect([...adapters].sort()).toEqual(["discord", "imessage", "slack", "telegram", "whatsapp"]);
   });
+
+  test("eval shape's grader items enumerate the 6 grader-builder kinds (inline + on-disk)", () => {
+    const GRADER_KINDS = [
+      "exact-match",
+      "contains",
+      "numeric-tolerance",
+      "json-schema",
+      "llm-judge",
+      "custom-script",
+    ];
+    const check = (schema: JsonSchemaShape) => {
+      const ev = schema.oneOf.find((c) => c.properties?.target?.const === "eval");
+      const items = ev?.properties?.graders?.items;
+      expect(items?.required).toEqual(["id", "kind"]);
+      expect(items?.properties?.kind?.enum).toEqual(GRADER_KINDS);
+      expect(items?.properties?.threshold).toEqual({ type: "number", minimum: 0, maximum: 1 });
+    };
+    check(getSpecJsonSchema() as unknown as JsonSchemaShape);
+    check(
+      JSON.parse(
+        readFileSync(join(import.meta.dir, "..", "schemas", "spec.json"), "utf8"),
+      ) as JsonSchemaShape,
+    );
+  });
 });
 
 type JsonSchemaShape = {
@@ -75,6 +99,12 @@ type JsonSchemaShape = {
       agent?: { required?: readonly string[] };
       steps?: { minItems?: number };
       channels?: { properties?: Record<string, unknown> };
+      graders?: {
+        items?: {
+          required?: readonly string[];
+          properties?: { kind?: { enum?: readonly string[] }; threshold?: unknown };
+        };
+      };
     };
   }>;
 };

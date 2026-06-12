@@ -14,6 +14,10 @@
  *   POST /api/wizard/start              → → wizard state
  *   POST /api/wizard/step               → state + answer → state
  *   POST /api/wizard/compile            → state → { yaml, envExample }
+ *   POST /api/grader-wizard/start       → → grader-builder state
+ *   POST /api/grader-wizard/step        → state + answer → state (400 + message on invalid answer)
+ *   POST /api/grader-wizard/compile     → state → { grader, yamlEntry, yamlBlock }
+ *   POST /api/specs/:name/graders       → { state } → append compiled grader to the eval spec
  *   POST /api/runs                      → { specName, prompt } → { runId }
  *   GET  /api/runs/:runId/events        → SSE stream of TraceEvent JSON lines
  *   GET  /api/graph-layout/:specName    → if target===graph, return layoutGraph result
@@ -43,6 +47,16 @@ import { join, resolve as resolvePath } from "node:path";
 import { CrewhausError } from "@crewhaus/errors";
 import { layoutGraph, renderSvg } from "@crewhaus/graph-visualizer";
 import type { IrGraphV0 } from "@crewhaus/ir";
+import {
+  type GraderAnswer,
+  type GraderBuilderState,
+  GraderBuilderError,
+  answerGrader,
+  appendGraderToSpecYaml,
+  compileGrader,
+  nextQuestion as nextGraderQuestion,
+  startGraderBuilder,
+} from "@crewhaus/grader-builder";
 import { type StudioPluginDefinition, assertPluginPathsStaySandboxed } from "@crewhaus/studio-plugin-sdk";
 import { type TemplateId, getTemplate, listTemplates } from "@crewhaus/scaffold-templates";
 import { parseSpec } from "@crewhaus/spec";
@@ -338,6 +352,75 @@ export async function startStudioServer(
       } catch (err) {
         return jsonResponse({ error: (err as Error).message }, 400);
       }
+    }
+
+    // ---- grader builder ---------------------------------------------------
+    // Same start/step/compile envelope as the wizard; validation errors
+    // from answerGrader surface as 400 + message so the Graders tab can
+    // render them inline next to the offending field.
+    if (p === "/api/grader-wizard/start" && m === "POST") {
+      const state = startGraderBuilder();
+      return jsonResponse({ state, nextQuestion: nextGraderQuestion(state) ?? null });
+    }
+    if (p === "/api/grader-wizard/step" && m === "POST") {
+      const body = (await req.json()) as { state?: GraderBuilderState; answer?: GraderAnswer };
+      if (!body.state || !body.answer) return jsonResponse({ error: "state+answer required" }, 400);
+      try {
+        const next = answerGrader(body.state, body.answer);
+        return jsonResponse({ state: next, nextQuestion: nextGraderQuestion(next) ?? null });
+      } catch (err) {
+        return jsonResponse({ error: (err as Error).message }, 400);
+      }
+    }
+    if (p === "/api/grader-wizard/compile" && m === "POST") {
+      const body = (await req.json()) as { state?: GraderBuilderState };
+      if (!body.state) return jsonResponse({ error: "state required" }, 400);
+      try {
+        return jsonResponse(compileGrader(body.state));
+      } catch (err) {
+        return jsonResponse({ error: (err as Error).message }, 400);
+      }
+    }
+    const mgr = /^\/api\/specs\/([a-z0-9-]+)\/graders$/i.exec(p);
+    if (mgr && m === "POST") {
+      const name = mgr[1] as string;
+      if (!safeName(name)) return jsonResponse({ error: "unsafe name" }, 400);
+      const fp = specPath(name);
+      if (!existsSync(fp)) return jsonResponse({ error: "spec not found" }, 404);
+      const yaml = readFileSync(fp, "utf8");
+      let parsed: { target?: string; graders?: ReadonlyArray<{ id?: unknown }> };
+      try {
+        parsed = parseSpec(yaml) as typeof parsed;
+      } catch (err) {
+        return jsonResponse({ error: "spec invalid", detail: (err as Error).message }, 422);
+      }
+      if (parsed.target !== "eval") {
+        return jsonResponse({ error: "spec is not an eval target", target: parsed.target }, 400);
+      }
+      const body = (await req.json()) as { state?: GraderBuilderState };
+      if (!body.state) return jsonResponse({ error: "state required" }, 400);
+      // Compile server-side from the validated state — the state machine
+      // stays the single source of truth; clients never send raw YAML.
+      let result: ReturnType<typeof compileGrader>;
+      try {
+        result = compileGrader(body.state);
+      } catch (err) {
+        return jsonResponse({ error: (err as Error).message }, 400);
+      }
+      const existing = Array.isArray(parsed.graders) ? parsed.graders : [];
+      if (existing.some((g) => g !== null && typeof g === "object" && g.id === result.grader.id)) {
+        return jsonResponse({ error: "grader id already exists", id: result.grader.id }, 409);
+      }
+      let next: string;
+      try {
+        next = appendGraderToSpecYaml(yaml, result.yamlEntry);
+        parseSpec(next); // defensive: never persist a spec the parser rejects
+      } catch (err) {
+        const status = err instanceof GraderBuilderError ? 400 : 422;
+        return jsonResponse({ error: "append failed", detail: (err as Error).message }, status);
+      }
+      writeFileSync(fp, next, { mode: 0o600 });
+      return jsonResponse({ name, graderId: result.grader.id, yaml: next });
     }
 
     // ---- runs -----------------------------------------------------------

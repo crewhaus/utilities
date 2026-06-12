@@ -461,6 +461,171 @@ describe("studio-server v1 — Section 31 endpoints", () => {
   });
 });
 
+describe("studio-server — grader builder endpoints", () => {
+  const EVAL_YAML =
+    "name: e1\ntarget: eval\nagent:\n  model: claude-sonnet-4-6\n  instructions: answer briefly\ndataset:\n  path: ./data.jsonl\ngraders: []\n";
+
+  // Drive the full state machine over HTTP and return the final state.
+  async function buildState(port: number, answers: ReadonlyArray<unknown>): Promise<unknown> {
+    const start = await fetch(`http://localhost:${port}/api/grader-wizard/start`, {
+      method: "POST",
+    }).then((r) => r.json() as Promise<{ state: unknown }>);
+    let state = start.state;
+    for (const answer of answers) {
+      const r = await fetch(`http://localhost:${port}/api/grader-wizard/step`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ state, answer }),
+      });
+      expect(r.status).toBe(200);
+      state = ((await r.json()) as { state: unknown }).state;
+    }
+    return state;
+  }
+
+  const LLM_JUDGE_ANSWERS: ReadonlyArray<unknown> = [
+    { question: "kind", value: "llm-judge" },
+    { question: "id", value: "helpfulness" },
+    { question: "rubric", value: "Be polite and cite a source." },
+    { question: "judgeModel", value: "claude-sonnet-4-6" },
+    { question: "threshold", value: 0.7 },
+    { question: "weight", value: undefined },
+  ];
+
+  test("POST /api/grader-wizard/start → step → compile produces grader YAML", async () => {
+    const root = newRoot();
+    const server = await startStudioServer({
+      workspaceDir: root,
+      pluginRoot: join(root, "plugins"),
+    });
+    try {
+      const state = await buildState(server.port, LLM_JUDGE_ANSWERS);
+      const compiled = await fetch(`http://localhost:${server.port}/api/grader-wizard/compile`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ state }),
+      }).then((r) => r.json() as Promise<{ grader: { id: string }; yamlBlock: string }>);
+      expect(compiled.grader.id).toBe("helpfulness");
+      expect(compiled.yamlBlock).toContain("graders:");
+      expect(compiled.yamlBlock).toContain("kind: llm-judge");
+      expect(compiled.yamlBlock).toContain("threshold: 0.7");
+    } finally {
+      await server.stop();
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test("POST /api/grader-wizard/step rejects invalid answers with 400 + message", async () => {
+    const root = newRoot();
+    const server = await startStudioServer({
+      workspaceDir: root,
+      pluginRoot: join(root, "plugins"),
+    });
+    try {
+      const start = await fetch(`http://localhost:${server.port}/api/grader-wizard/start`, {
+        method: "POST",
+      }).then((r) => r.json() as Promise<{ state: unknown }>);
+      const r = await fetch(`http://localhost:${server.port}/api/grader-wizard/step`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          state: start.state,
+          answer: { question: "kind", value: "vibes" },
+        }),
+      });
+      expect(r.status).toBe(400);
+      const body = (await r.json()) as { error: string };
+      expect(body.error).toContain("unknown grader kind");
+    } finally {
+      await server.stop();
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test("POST /api/specs/:name/graders appends to an eval spec", async () => {
+    const root = newRoot();
+    const server = await startStudioServer({
+      workspaceDir: root,
+      pluginRoot: join(root, "plugins"),
+    });
+    try {
+      const create = await fetch(`http://localhost:${server.port}/api/specs`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name: "e1", yaml: EVAL_YAML }),
+      });
+      expect(create.status).toBe(201);
+      const state = await buildState(server.port, LLM_JUDGE_ANSWERS);
+      const append = await fetch(`http://localhost:${server.port}/api/specs/e1/graders`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ state }),
+      });
+      expect(append.status).toBe(200);
+      const body = (await append.json()) as { graderId: string; yaml: string };
+      expect(body.graderId).toBe("helpfulness");
+      expect(body.yaml).toContain("kind: llm-judge");
+      // Round-trip: the stored spec now contains the grader and still parses.
+      const get = await fetch(`http://localhost:${server.port}/api/specs/e1`).then(
+        (r) => r.json() as Promise<{ yaml: string; parsed: { graders: Array<{ id: string }> } }>,
+      );
+      expect(get.yaml).toContain("- id: helpfulness");
+      expect(get.parsed.graders.map((g) => g.id)).toEqual(["helpfulness"]);
+    } finally {
+      await server.stop();
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test("POST /api/specs/:name/graders → 404 unknown spec, 400 non-eval, 409 duplicate id, 400 incomplete state", async () => {
+    const root = newRoot();
+    const server = await startStudioServer({
+      workspaceDir: root,
+      pluginRoot: join(root, "plugins"),
+    });
+    try {
+      const state = await buildState(server.port, LLM_JUDGE_ANSWERS);
+      const post = (name: string, body: unknown) =>
+        fetch(`http://localhost:${server.port}/api/specs/${name}/graders`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(body),
+        });
+
+      expect((await post("missing", { state })).status).toBe(404);
+
+      await fetch(`http://localhost:${server.port}/api/specs`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          name: "cli-spec",
+          yaml: "name: cli-spec\ntarget: cli\nagent:\n  model: m\n  instructions: i\n",
+        }),
+      });
+      const nonEval = await post("cli-spec", { state });
+      expect(nonEval.status).toBe(400);
+      expect(((await nonEval.json()) as { error: string }).error).toContain("not an eval target");
+
+      await fetch(`http://localhost:${server.port}/api/specs`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name: "e2", yaml: EVAL_YAML.replace("name: e1", "name: e2") }),
+      });
+      expect((await post("e2", { state })).status).toBe(200);
+      expect((await post("e2", { state })).status).toBe(409);
+
+      const incompleteState = await buildState(server.port, [
+        { question: "kind", value: "exact-match" },
+      ]);
+      expect((await post("e2", { state: incompleteState })).status).toBe(400);
+      expect((await post("e2", {})).status).toBe(400);
+    } finally {
+      await server.stop();
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("StudioServerError", () => {
   test("constructs with the config code, message, and no cause", () => {
     const err = new StudioServerError("unsafe spec name: ../etc");

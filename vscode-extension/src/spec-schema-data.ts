@@ -193,7 +193,41 @@ export const specSchemaJson = {
     shapeWithTarget("eval", {
       agent: { type: "object" },
       dataset: { type: "object" },
-      graders: { type: "array" },
+      // Grader items mirror @crewhaus/grader-builder's six kinds. Kept
+      // permissive (no per-kind oneOf) — the value is autocomplete.
+      graders: {
+        type: "array",
+        items: {
+          type: "object",
+          required: ["id", "kind"],
+          properties: {
+            id: { type: "string", minLength: 1 },
+            kind: {
+              enum: [
+                "exact-match",
+                "contains",
+                "numeric-tolerance",
+                "json-schema",
+                "llm-judge",
+                "custom-script",
+              ],
+            },
+            expected: {},
+            pattern: { type: "string", minLength: 1 },
+            regex: { type: "boolean" },
+            caseSensitive: { type: "boolean" },
+            tolerance: { type: "number", minimum: 0 },
+            mode: { enum: ["absolute", "relative"] },
+            schema: { type: "object" },
+            rubric: { type: "string", minLength: 1 },
+            model: { type: "string", minLength: 1 },
+            threshold: { type: "number", minimum: 0, maximum: 1 },
+            script: { type: "string", minLength: 1 },
+            timeoutMs: { type: "integer", exclusiveMinimum: 0 },
+            weight: { type: "number", exclusiveMinimum: 0 },
+          },
+        },
+      },
     }),
   ],
 } as const;

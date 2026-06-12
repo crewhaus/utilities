@@ -16,6 +16,10 @@
         "@crewhaus/scaffold-templates": "workspace:*",
       },
     },
+    "grader-builder": {
+      "name": "@crewhaus/grader-builder",
+      "version": "0.1.3",
+    },
     "graph-visualizer": {
       "name": "@crewhaus/graph-visualizer",
       "version": "0.1.3",
@@ -39,6 +43,7 @@
       "name": "@crewhaus/studio-server",
       "version": "0.1.3",
       "dependencies": {
+        "@crewhaus/grader-builder": "workspace:*",
         "@crewhaus/graph-visualizer": "workspace:*",
         "@crewhaus/scaffold-templates": "workspace:*",
         "@crewhaus/studio-plugin-sdk": "workspace:*",
@@ -104,6 +109,8 @@
     "@babel/helper-validator-identifier": ["@babel/helper-validator-identifier@7.29.7", "", {}, "sha512-qehxGkRj55h/ff8EMaJ+cYhyaKlHIxqYDn682wQD7RNp9UujOQsHog2uS0r2vzr4pW+sXf90NeeayjcNaX3fFg=="],
 
     "@crewhaus/crewhaus-playground": ["@crewhaus/crewhaus-playground@workspace:crewhaus-playground"],
+
+    "@crewhaus/grader-builder": ["@crewhaus/grader-builder@workspace:grader-builder"],
 
     "@crewhaus/graph-visualizer": ["@crewhaus/graph-visualizer@workspace:graph-visualizer"],
 

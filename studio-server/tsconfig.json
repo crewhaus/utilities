@@ -5,8 +5,9 @@
     "outDir": "dist"
   },
   "references": [
+    { "path": "../grader-builder" },
     { "path": "../graph-visualizer" },
-    { "path": "../plugin-sdk" },
+    { "path": "../studio-plugin-sdk" },
     { "path": "../scaffold-templates" },
     { "path": "../trace-viewer" },
     { "path": "../wizard" }
