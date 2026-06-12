@@ -1,6 +1,6 @@
 # `@crewhaus/studio-server`
 
-Bun.serve daemon for the CrewHaus Studio — spec CRUD, wizard endpoints, live run inspection over SSE, plugin discovery, and graph layout. The studio-ui (and any third-party UI) talks to this HTTP surface.
+Bun.serve daemon for the CrewHaus Studio — spec CRUD, wizard + grader-builder endpoints, live run inspection over SSE, plugin discovery, and graph layout. The studio-ui (and any third-party UI) talks to this HTTP surface.
 
 ## Try it
 
@@ -74,6 +74,10 @@ await startStudioServer({
 | `POST` | `/api/wizard/start` | — | `{ state, nextQuestion }` |
 | `POST` | `/api/wizard/step` | `{ state, answer }` | `{ state, nextQuestion }` |
 | `POST` | `/api/wizard/compile` | `{ state }` | `{ yaml, envExample, target, name }` |
+| `POST` | `/api/grader-wizard/start` | — | `{ state, nextQuestion }` |
+| `POST` | `/api/grader-wizard/step` | `{ state, answer }` | `{ state, nextQuestion }`; `400 { error }` on invalid answers (shown inline by the UI) |
+| `POST` | `/api/grader-wizard/compile` | `{ state }` | `{ grader, yamlEntry, yamlBlock }` |
+| `POST` | `/api/specs/:name/graders` | `{ state }` | appends the compiled grader to the eval spec's `graders:`; `{ name, graderName, yaml }` or 404 / 400 (non-eval, incomplete) / 409 (identical grader — same `name` + `opts` — already present) / 422 |
 | `POST` | `/api/runs` | `{ specName, prompt }` | `201 { runId }` |
 | `GET` | `/api/runs/:runId/events` | — | SSE stream of `data: <json>` events, terminated by `event: done` |
 | `POST` | `/api/runs/:runId/cancel` | — | aborts the dispatcher's signal |
@@ -84,6 +88,8 @@ await startStudioServer({
 | `GET` | `/api/plugins` | — | `{ pluginRoot, plugins: [...] }` |
 
 Spec names must match `/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/i` (single alnum, or alnum-…-alnum, no leading/trailing hyphen).
+
+The graders append pre-checks the spec with a *loose* YAML parse, so the first grader can be appended to a draft eval spec (`graders: []` or no `graders:` key yet — not yet valid under `@crewhaus/spec`, which requires at least one grader). Persistence is gated by the real `@crewhaus/spec` parse of the resulting spec: on failure the server returns 422 and writes nothing.
 
 ## API surface
 
@@ -99,7 +105,7 @@ Spec names must match `/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/i` (single alnum, or a
 
 ## Pairs with
 
-- Consumes [wizard](../wizard/), [scaffold-templates](../scaffold-templates/), [plugin-sdk](../plugin-sdk/), [graph-visualizer](../graph-visualizer/) directly
+- Consumes [wizard](../wizard/), [grader-builder](../grader-builder/), [scaffold-templates](../scaffold-templates/), [studio-plugin-sdk](../studio-plugin-sdk/), [graph-visualizer](../graph-visualizer/) directly
 - Returns trace events shaped for [trace-viewer](../trace-viewer/) to render
 - The default UI is [studio-ui](../studio-ui/) — `/` ships a minimal smoke-probe page; the full SPA is rendered by wiring `renderStudioHtml` into your own `Bun.serve` handler (see [studio-ui/README.md](../studio-ui/))
 

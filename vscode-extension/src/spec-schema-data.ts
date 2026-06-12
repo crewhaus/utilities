@@ -193,7 +193,46 @@ export const specSchemaJson = {
     shapeWithTarget("eval", {
       agent: { type: "object" },
       dataset: { type: "object" },
-      graders: { type: "array" },
+      // Grader items are the strict `{ name, opts? }` entries
+      // @crewhaus/spec's eval target parses — `name` is one of the six
+      // grader types @crewhaus/eval-grader consumes. opts is kept
+      // permissive (no per-name oneOf) — the value is autocomplete.
+      graders: {
+        type: "array",
+        items: {
+          type: "object",
+          required: ["name"],
+          properties: {
+            name: {
+              enum: [
+                "exact_match",
+                "contains",
+                "regex",
+                "json_path",
+                "tool_call_sequence",
+                "llm_judge",
+              ],
+            },
+            opts: {
+              type: "object",
+              properties: {
+                trim: { type: "boolean" },
+                case_insensitive: { type: "boolean" },
+                substring: { type: "string", minLength: 1 },
+                pattern: { type: "string", minLength: 1 },
+                flags: { type: "string" },
+                expected: {},
+                path: { type: "string", minLength: 1 },
+                mode: { enum: ["exact", "subseq", "set"] },
+                rubric: { type: "object" },
+                model: { type: "string", minLength: 1 },
+                weight: { type: "number", exclusiveMinimum: 0 },
+              },
+            },
+          },
+          additionalProperties: false,
+        },
+      },
     }),
   ],
 } as const;

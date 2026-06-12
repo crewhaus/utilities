@@ -8,12 +8,13 @@ import {
 } from "./index.js";
 
 describe("studio-ui (T1)", () => {
-  test("renderStudioHtml emits a complete HTML document with the three nav tabs", () => {
+  test("renderStudioHtml emits a complete HTML document with the four nav tabs", () => {
     const html = renderStudioHtml();
     expect(html.startsWith("<!doctype html>")).toBe(true);
     expect(html).toContain("<title>CrewHaus Studio</title>");
     expect(html).toContain('id="tab-specs"');
     expect(html).toContain('id="tab-wizard"');
+    expect(html).toContain('id="tab-graders"');
     expect(html).toContain('id="tab-plugins"');
   });
 
@@ -22,15 +23,39 @@ describe("studio-ui (T1)", () => {
     expect(html).toContain("<title>Custom Title</title>");
   });
 
-  test("getStudioJs is callable + non-empty + references all three views", () => {
+  test("getStudioJs is callable + non-empty + references all four views", () => {
     const js = getStudioJs();
     expect(js.length).toBeGreaterThan(500);
     expect(js).toContain("renderSpecs");
     expect(js).toContain("renderWizard");
+    expect(js).toContain("renderGraders");
     expect(js).toContain("renderPlugins");
     expect(js).toContain("/api/specs");
     expect(js).toContain("/api/wizard/start");
     expect(js).toContain("/api/plugins");
+  });
+
+  test("graders tab JS drives the grader-wizard endpoints and append route", () => {
+    const js = getStudioJs();
+    expect(js).toContain("/api/grader-wizard/start");
+    expect(js).toContain("/api/grader-wizard/step");
+    expect(js).toContain("/api/grader-wizard/compile");
+    expect(js).toContain("/graders'");
+    expect(js).toContain("navigator.clipboard.writeText");
+    // The append response carries graderName (the grader type), not an id.
+    expect(js).toContain("graderName");
+    expect(js).not.toContain("graderId");
+    // One form branch per grader kind — the six real @crewhaus/spec types.
+    for (const kind of [
+      "exact_match",
+      "contains",
+      "regex",
+      "json_path",
+      "tool_call_sequence",
+      "llm_judge",
+    ]) {
+      expect(js).toContain(`'${kind}'`);
+    }
   });
 });
 

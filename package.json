@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Studio + IDE tooling for the CrewHaus meta-harness compiler: studio-server, studio-ui, wizard, scaffold-templates, plugin-sdk, trace-viewer, graph-visualizer, vscode-extension, jetbrains-plugin, crewhaus-playground. Depends on a sibling ../factory/ checkout for the compiler types.",
+  "description": "Studio + IDE tooling for the CrewHaus meta-harness compiler: studio-server, studio-ui, wizard, grader-builder, scaffold-templates, plugin-sdk, trace-viewer, graph-visualizer, vscode-extension, jetbrains-plugin, crewhaus-playground. Compiler types come from the published @crewhaus/* packages on npm.",
   "workspaces": ["*"],
   "scripts": {
     "studio": "bun --filter=./studio-ui run start",

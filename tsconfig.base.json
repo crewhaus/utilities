@@ -22,13 +22,6 @@
     "sourceMap": true,
     "composite": true,
     "incremental": true,
-    "useDefineForClassFields": true,
-    "baseUrl": ".",
-    "paths": {
-      "@crewhaus/errors": ["../factory/packages/errors/src/index.ts"],
-      "@crewhaus/ir": ["../factory/packages/ir/src/index.ts"],
-      "@crewhaus/spec": ["../factory/packages/spec/src/index.ts"],
-      "@crewhaus/trace-event-bus": ["../factory/packages/trace-event-bus/src/index.ts"]
-    }
+    "useDefineForClassFields": true
   }
 }

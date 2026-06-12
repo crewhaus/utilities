@@ -4,11 +4,15 @@
  * Vanilla TS module that exports an HTML string + a stand-alone JS
  * bundle the studio-server can serve at `/`. v0 ships a minimal
  * single-page app:
- *   - top nav: Specs · Wizard · Plugins
+ *   - top nav: Specs · Wizard · Graders · Plugins
  *   - Specs: lists `/api/specs`, click to open the YAML in a textarea
  *     editor (no Monaco — vanilla `<textarea>` keeps deps tiny)
  *   - Wizard: walks `/api/wizard/start` → `/step` → `/compile` and
  *     POSTs to `/api/specs` to create the new spec
+ *   - Graders: form-based grader builder; replays field values through
+ *     `/api/grader-wizard/{start,step,compile}` for a live YAML
+ *     preview with inline validation errors, then appends via
+ *     `POST /api/specs/:name/graders` (or copy/paste the YAML)
  *   - Plugins: lists `/api/plugins`
  *
  * Lit + Monaco land in a follow-up; v0 keeps the UI shipping-ready
@@ -40,6 +44,20 @@ export function renderStudioHtml(opts: RenderOptions = {}): string {
     .specs-list li:hover { background: #f9fafb; }
     textarea { width: 100%; height: 360px; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 13px; }
     .pane { background: #fafafa; border: 1px solid #e5e7eb; padding: 16px; margin-top: 12px; border-radius: 4px; }
+    .kind-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; margin-top: 12px; }
+    .kind-card { border: 1px solid #ddd; border-radius: 4px; padding: 12px; cursor: pointer; background: #fff; text-align: left; font: inherit; }
+    .kind-card:hover { background: #f9fafb; }
+    .kind-card.selected { border-color: #1d3a8a; box-shadow: 0 0 0 1px #1d3a8a; }
+    .kind-card strong { display: block; margin-bottom: 4px; color: #1d3a8a; }
+    .field { margin-top: 12px; }
+    .field label { display: block; font-weight: 600; margin-bottom: 4px; }
+    .field input[type="text"], .field input[type="number"], .field select { width: 100%; max-width: 420px; padding: 6px 8px; border: 1px solid #ddd; border-radius: 4px; font: inherit; box-sizing: border-box; }
+    .field textarea { height: 90px; }
+    .field .hint { color: #6b7280; font-size: 13px; margin-top: 2px; }
+    .field-error { color: #b91c1c; font-size: 13px; margin-top: 4px; }
+    .yaml-preview { background: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 4px; padding: 12px; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 13px; white-space: pre; overflow-x: auto; }
+    button.primary { background: #1d3a8a; color: white; border: 0; border-radius: 4px; padding: 8px 16px; font: inherit; cursor: pointer; }
+    button.primary:disabled { background: #9ca3af; cursor: not-allowed; }
   </style>
 </head>
 <body>
@@ -47,11 +65,13 @@ export function renderStudioHtml(opts: RenderOptions = {}): string {
   <nav>
     <button id="tab-specs" class="active">Specs</button>
     <button id="tab-wizard">Wizard</button>
+    <button id="tab-graders">Graders</button>
     <button id="tab-plugins">Plugins</button>
   </nav>
   <main>
     <section id="view-specs"></section>
     <section id="view-wizard" hidden></section>
+    <section id="view-graders" hidden></section>
     <section id="view-plugins" hidden></section>
   </main>
   <script type="module">
@@ -69,7 +89,7 @@ ${getStudioJs()}
 export function getStudioJs(): string {
   return `
 const $ = (sel) => document.querySelector(sel);
-const tabs = ['specs', 'wizard', 'plugins'];
+const tabs = ['specs', 'wizard', 'graders', 'plugins'];
 
 function activate(name) {
   for (const t of tabs) {
@@ -81,6 +101,7 @@ function activate(name) {
   }
   if (name === 'specs') renderSpecs();
   if (name === 'wizard') renderWizard();
+  if (name === 'graders') renderGraders();
   if (name === 'plugins') renderPlugins();
 }
 
@@ -197,6 +218,325 @@ function ask(q) {
     const v = window.prompt(q.prompt + ' (default|plan|auto)', 'default') || 'default';
     return Promise.resolve({ question: 'permissionMode', value: v });
   }
+}
+
+// ---- Graders tab ----------------------------------------------------------
+// Form-based grader builder. The browser holds no validation logic: field
+// values are replayed through the headless state machine over HTTP
+// (/api/grader-wizard/start → step×N → compile) and any 400 from /step is
+// rendered inline next to the offending field.
+
+// Mirrors the grader-builder question order per kind (kind, then the
+// kind's branch — no global questions after the branch).
+const GRADER_BRANCH = {
+  'exact_match': ['trim', 'caseInsensitive'],
+  'contains': ['substring', 'caseInsensitive'],
+  'regex': ['pattern', 'flags'],
+  'json_path': ['path', 'expectedJson'],
+  'tool_call_sequence': ['toolCalls', 'sequenceMode'],
+  'llm_judge': ['criterionName', 'criterionDescription', 'anchors', 'passingScore', 'judgeModel', 'judgeWeight'],
+};
+
+// Form field metadata per question id. Labels/hints mirror the
+// grader-builder nextQuestion() prompts; 'lines' renders a textarea
+// whose value is split into an array (one item per non-empty line).
+const GRADER_FIELDS = {
+  trim: { label: 'Trim surrounding whitespace before comparing', type: 'checkbox', checked: true },
+  caseInsensitive: { label: 'Ignore case when comparing', type: 'checkbox', checked: false },
+  substring: { label: 'Substring the output must contain', type: 'text', hint: 'matched literally' },
+  pattern: { label: 'Regular expression the output must match', type: 'text', hint: 'JavaScript RegExp syntax, e.g. refund(ed|s)?' },
+  flags: { label: 'Regex flags (optional)', type: 'text', hint: 'e.g. "i" for case-insensitive, "m" for multiline; leave empty for none', optional: true },
+  path: { label: 'JSONPath that must match in the (JSON) output', type: 'text', hint: '$-rooted, e.g. $.status or $.items[*].id' },
+  expectedJson: { label: 'Expected value at that path (optional, as JSON)', type: 'textarea', hint: 'e.g. "resolved" or 42 — leave empty to only require a match', optional: true },
+  toolCalls: { label: 'Tool names the run must call, in order (one per line)', type: 'lines', hint: 'e.g. bash, read — names as the spec\\'s tools: list declares them' },
+  sequenceMode: { label: 'How strictly should the sequence match?', type: 'select', options: ['subseq', 'exact', 'set'], hint: 'subseq (default): expected tools appear in order, others may interleave; exact: the full call list; set: order ignored' },
+  criterionName: { label: 'Rubric criterion name', type: 'text', hint: 'e.g. helpfulness, accuracy' },
+  criterionDescription: { label: 'What should the judge look for?', type: 'textarea', hint: 'plain language; the judge scores 1–5 against this' },
+  anchors: { label: 'Anchor descriptions for scores 1–5 (optional)', type: 'lines', hint: 'five lines, worst (1) to best (5); leave empty for generic anchors', optional: true },
+  passingScore: { label: 'Minimum judge score to pass (optional)', type: 'number', min: 1, max: 5, step: 0.5, hint: '1–5; defaults to 3', optional: true },
+  judgeModel: { label: 'Judge model', type: 'model', suggested: ['claude-sonnet-4-6', 'claude-haiku-4-5-20251001', 'claude-opus-4-7'] },
+  judgeWeight: { label: 'Weight relative to other graders (optional)', type: 'number', hint: 'positive number; leave empty to skip (default 1)', optional: true },
+};
+
+let graderState = null; // last successfully compiled state (sent to the append endpoint)
+
+async function renderGraders() {
+  const view = $('#view-graders');
+  if (!view) return;
+  graderState = null;
+  view.innerHTML = '<h2>New Grader</h2><p>Pick a grader kind, fill in the fields, and watch the YAML preview update. Add it to an eval spec below, or copy the YAML into your spec by hand.</p>';
+  const { nextQuestion: kindQ } = await fetch('/api/grader-wizard/start', { method: 'POST' }).then((r) => r.json());
+
+  const cards = document.createElement('div');
+  cards.className = 'kind-cards';
+  const formWrap = document.createElement('div');
+  const previewWrap = document.createElement('div');
+  view.appendChild(cards);
+  view.appendChild(formWrap);
+  view.appendChild(previewWrap);
+
+  for (const c of kindQ.choices) {
+    const card = document.createElement('button');
+    card.className = 'kind-card';
+    card.dataset.kind = c.value;
+    card.innerHTML = '<strong>' + escapeHtml(c.label) + '</strong>' + escapeHtml(c.description);
+    card.addEventListener('click', () => {
+      for (const el of cards.querySelectorAll('.kind-card')) el.classList.remove('selected');
+      card.classList.add('selected');
+      renderGraderForm(c.value, formWrap, previewWrap);
+    });
+    cards.appendChild(card);
+  }
+}
+
+function graderField(qid) {
+  const meta = GRADER_FIELDS[qid];
+  const wrap = document.createElement('div');
+  wrap.className = 'field';
+  wrap.dataset.question = qid;
+  const label = document.createElement('label');
+  let input;
+  if (meta.type === 'checkbox') {
+    input = document.createElement('input');
+    input.type = 'checkbox';
+    input.checked = meta.checked;
+    label.appendChild(input);
+    label.appendChild(document.createTextNode(' ' + meta.label));
+    wrap.appendChild(label);
+  } else if (meta.type === 'select') {
+    label.textContent = meta.label;
+    input = document.createElement('select');
+    for (const o of meta.options) {
+      const opt = document.createElement('option');
+      opt.value = o;
+      opt.textContent = o;
+      input.appendChild(opt);
+    }
+    wrap.appendChild(label);
+    wrap.appendChild(input);
+  } else if (meta.type === 'model') {
+    label.textContent = meta.label;
+    input = document.createElement('input');
+    input.type = 'text';
+    input.value = meta.suggested[0];
+    input.setAttribute('list', 'grader-models');
+    let datalist = document.querySelector('#grader-models');
+    if (!datalist) {
+      datalist = document.createElement('datalist');
+      datalist.id = 'grader-models';
+      for (const s of meta.suggested) {
+        const opt = document.createElement('option');
+        opt.value = s;
+        datalist.appendChild(opt);
+      }
+      document.body.appendChild(datalist);
+    }
+    wrap.appendChild(label);
+    wrap.appendChild(input);
+  } else if (meta.type === 'textarea' || meta.type === 'lines') {
+    label.textContent = meta.label;
+    input = document.createElement('textarea');
+    wrap.appendChild(label);
+    wrap.appendChild(input);
+  } else {
+    label.textContent = meta.label;
+    input = document.createElement('input');
+    input.type = meta.type;
+    if (meta.placeholder) input.placeholder = meta.placeholder;
+    if (meta.min !== undefined) input.min = meta.min;
+    if (meta.max !== undefined) input.max = meta.max;
+    if (meta.step !== undefined) input.step = meta.step;
+    if (meta.value !== undefined) input.value = meta.value;
+    wrap.appendChild(label);
+    wrap.appendChild(input);
+  }
+  input.dataset.question = qid;
+  if (meta.hint) {
+    const hint = document.createElement('div');
+    hint.className = 'hint';
+    hint.textContent = meta.hint;
+    wrap.appendChild(hint);
+  }
+  const err = document.createElement('div');
+  err.className = 'field-error';
+  err.hidden = true;
+  wrap.appendChild(err);
+  return wrap;
+}
+
+function graderAnswerFrom(input, qid) {
+  const meta = GRADER_FIELDS[qid];
+  if (meta.type === 'checkbox') return { question: qid, value: input.checked };
+  if (meta.type === 'select') return { question: qid, value: input.value };
+  if (meta.type === 'lines') {
+    const items = input.value.split('\\n').map((s) => s.trim()).filter((s) => s !== '');
+    if (items.length === 0 && meta.optional) return { question: qid, value: undefined };
+    return { question: qid, value: items };
+  }
+  const raw = input.value.trim();
+  if (meta.type === 'number') {
+    if (raw === '') return meta.optional ? { question: qid, value: undefined } : null;
+    return { question: qid, value: Number(raw) };
+  }
+  if (raw === '' && meta.optional) return { question: qid, value: undefined };
+  return { question: qid, value: raw };
+}
+
+function renderGraderForm(kind, formWrap, previewWrap) {
+  graderState = null;
+  const order = GRADER_BRANCH[kind];
+  formWrap.innerHTML = '';
+  previewWrap.innerHTML = '';
+  const form = document.createElement('div');
+  form.className = 'pane';
+  for (const qid of order) form.appendChild(graderField(qid));
+  formWrap.appendChild(form);
+
+  const preview = document.createElement('pre');
+  preview.className = 'yaml-preview';
+  preview.textContent = '# fill in the fields to preview the grader YAML';
+  const copy = document.createElement('button');
+  copy.textContent = 'Copy YAML';
+  copy.disabled = true;
+  copy.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(preview.textContent);
+      copy.textContent = 'Copied.';
+    } catch {
+      const ta = document.createElement('textarea');
+      ta.value = preview.textContent;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      ta.remove();
+      copy.textContent = 'Copied.';
+    }
+    setTimeout(() => (copy.textContent = 'Copy YAML'), 1500);
+  });
+  previewWrap.appendChild(preview);
+  previewWrap.appendChild(copy);
+  const attach = document.createElement('div');
+  previewWrap.appendChild(attach);
+  renderGraderAttach(attach);
+
+  let timer;
+  const refresh = () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => replayGrader(kind, order, form, preview, copy, attach), 400);
+  };
+  form.addEventListener('input', refresh);
+  form.addEventListener('change', refresh);
+  refresh();
+}
+
+async function replayGrader(kind, order, form, preview, copy, attach) {
+  for (const el of form.querySelectorAll('.field-error')) {
+    el.hidden = true;
+    el.textContent = '';
+  }
+  const answers = [{ question: 'kind', value: kind }];
+  for (const qid of order) {
+    const input = form.querySelector('[data-question="' + qid + '"] input, [data-question="' + qid + '"] textarea, [data-question="' + qid + '"] select');
+    const a = graderAnswerFrom(input, qid);
+    if (a === null) {
+      preview.textContent = '# ' + GRADER_FIELDS[qid].label + ' is required';
+      graderState = null;
+      copy.disabled = true;
+      attach.querySelector('button.primary')?.setAttribute('disabled', '');
+      return;
+    }
+    answers.push(a);
+  }
+  let { state } = await fetch('/api/grader-wizard/start', { method: 'POST' }).then((r) => r.json());
+  for (const answer of answers) {
+    const res = await fetch('/api/grader-wizard/step', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ state, answer }),
+    });
+    const body = await res.json();
+    if (!res.ok) {
+      const field = form.querySelector('[data-question="' + answer.question + '"] .field-error');
+      if (field) {
+        field.textContent = body.error;
+        field.hidden = false;
+      }
+      preview.textContent = '# ' + body.error;
+      graderState = null;
+      copy.disabled = true;
+      attach.querySelector('button.primary')?.setAttribute('disabled', '');
+      return;
+    }
+    state = body.state;
+  }
+  const compiled = await fetch('/api/grader-wizard/compile', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ state }),
+  }).then((r) => r.json());
+  if (compiled.error) {
+    preview.textContent = '# ' + compiled.error;
+    graderState = null;
+    copy.disabled = true;
+    return;
+  }
+  preview.textContent = compiled.yamlBlock;
+  graderState = state;
+  copy.disabled = false;
+  attach.querySelector('button.primary')?.removeAttribute('disabled');
+}
+
+async function renderGraderAttach(attach) {
+  attach.innerHTML = '';
+  const { specs } = await fetch('/api/specs').then((r) => r.json());
+  const evalSpecs = specs.filter((s) => s.target === 'eval');
+  const pane = document.createElement('div');
+  pane.className = 'pane';
+  if (evalSpecs.length === 0) {
+    pane.innerHTML = '<p>No eval specs in this workspace — copy the YAML above into your eval spec\\'s <code>graders:</code> array.</p>';
+    attach.appendChild(pane);
+    return;
+  }
+  pane.innerHTML = '<strong>Add to eval spec</strong> ';
+  const sel = document.createElement('select');
+  for (const s of evalSpecs) {
+    const opt = document.createElement('option');
+    opt.value = s.name;
+    opt.textContent = s.name;
+    sel.appendChild(opt);
+  }
+  const add = document.createElement('button');
+  add.className = 'primary';
+  add.textContent = 'Add to spec';
+  add.disabled = true;
+  const status = document.createElement('span');
+  status.style.marginLeft = '8px';
+  add.addEventListener('click', async () => {
+    if (!graderState) return;
+    const res = await fetch('/api/specs/' + sel.value + '/graders', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ state: graderState }),
+    });
+    const body = await res.json();
+    if (res.ok) {
+      status.textContent = 'Added ' + body.graderName + ' to ' + body.name + '. ';
+      const open = document.createElement('button');
+      open.textContent = 'Open spec';
+      open.addEventListener('click', () => {
+        activate('specs');
+        openSpec(body.name);
+      });
+      status.appendChild(open);
+    } else {
+      status.textContent = 'Error: ' + (body.error || res.status) + (body.detail ? ' — ' + body.detail : '');
+    }
+  });
+  pane.appendChild(sel);
+  pane.appendChild(document.createTextNode(' '));
+  pane.appendChild(add);
+  pane.appendChild(status);
+  attach.appendChild(pane);
 }
 
 async function renderPlugins() {

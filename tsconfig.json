@@ -16,14 +16,7 @@
     "verbatimModuleSyntax": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
-    "noEmit": true,
-    "baseUrl": ".",
-    "paths": {
-      "@crewhaus/errors": ["../factory/packages/errors/src/index.ts"],
-      "@crewhaus/ir": ["../factory/packages/ir/src/index.ts"],
-      "@crewhaus/spec": ["../factory/packages/spec/src/index.ts"],
-      "@crewhaus/trace-event-bus": ["../factory/packages/trace-event-bus/src/index.ts"]
-    }
+    "noEmit": true
   },
   "files": [],
   "exclude": ["node_modules", "**/node_modules"]
