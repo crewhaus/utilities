@@ -18,6 +18,15 @@
  *   POST /api/grader-wizard/step        → state + answer → state (400 + message on invalid answer)
  *   POST /api/grader-wizard/compile     → state → { grader, yamlEntry, yamlBlock }
  *   POST /api/specs/:name/graders       → { state } → append compiled grader to the eval spec
+ *   POST /api/dataset-wizard/start      → → dataset-builder state
+ *   POST /api/dataset-wizard/step       → state + answer → state (400 + message on invalid answer)
+ *   POST /api/dataset-wizard/compile    → state → { dataset, cases, yamlBlock, jsonl, path }
+ *   GET  /api/datasets                  → list dataset coordinates under <workspace>/datasets/
+ *   GET  /api/datasets/:name/:version/:split → stored cases (422 when the file is invalid)
+ *   POST /api/datasets                  → { state } → write datasets/<n>/<v>/<s>.jsonl (409 on conflicting content)
+ *   POST /api/specs/:name/dataset       → { state, create? } → set the eval spec's dataset: block + write
+ *                                         the JSONL sidecar; with create:{model,instructions} a missing
+ *                                         spec is created as a starter eval spec around the dataset
  *   POST /api/runs                      → { specName, prompt } → { runId }
  *   GET  /api/runs/:runId/events        → SSE stream of TraceEvent JSON lines
  *   GET  /api/graph-layout/:specName    → if target===graph, return layoutGraph result
@@ -43,7 +52,22 @@ import {
   statSync,
   writeFileSync,
 } from "node:fs";
-import { join, resolve as resolvePath } from "node:path";
+import { dirname, join, resolve as resolvePath } from "node:path";
+import {
+  type DatasetAnswer,
+  type DatasetBuilderState,
+  DatasetBuilderError,
+  type DatasetSplit,
+  answerDataset,
+  buildEvalSpecStarterYaml,
+  compileDataset,
+  isDatasetNameSafe,
+  isDatasetVersionSafe,
+  nextQuestion as nextDatasetQuestion,
+  parseDatasetJsonl,
+  setDatasetInSpecYaml,
+  startDatasetBuilder,
+} from "@crewhaus/dataset-builder";
 import { CrewhausError } from "@crewhaus/errors";
 import { layoutGraph, renderSvg } from "@crewhaus/graph-visualizer";
 import type { IrGraphV0 } from "@crewhaus/ir";
@@ -266,6 +290,55 @@ export async function startStudioServer(
     return out.sort((a, b) => a.name.localeCompare(b.name));
   }
 
+  // Dataset sidecar files live in the workspace next to the specs they
+  // feed: <workspaceDir>/datasets/<name>/<version>/<split>.jsonl — the
+  // registry layout the eval target's dataset coordinate resolves to.
+  const SPLITS: ReadonlyArray<DatasetSplit> = ["train", "dev", "test"];
+
+  function datasetFilePath(name: string, version: string, split: DatasetSplit): string {
+    if (!isDatasetNameSafe(name) || !isDatasetVersionSafe(version)) {
+      throw new StudioServerError(`unsafe dataset coordinate: ${name}/${version}`);
+    }
+    return join(workspaceDir, "datasets", name, version, `${split}.jsonl`);
+  }
+
+  function listDatasets(): Array<{
+    name: string;
+    version: string;
+    split: string;
+    cases: number | null;
+  }> {
+    const root = join(workspaceDir, "datasets");
+    if (!existsSync(root)) return [];
+    const out: Array<{ name: string; version: string; split: string; cases: number | null }> = [];
+    for (const name of readdirSync(root)) {
+      const nameDir = join(root, name);
+      if (!isDatasetNameSafe(name) || !statSync(nameDir).isDirectory()) continue;
+      for (const version of readdirSync(nameDir)) {
+        const versionDir = join(nameDir, version);
+        if (!isDatasetVersionSafe(version) || !statSync(versionDir).isDirectory()) continue;
+        for (const f of readdirSync(versionDir)) {
+          if (!f.endsWith(".jsonl")) continue;
+          const split = f.replace(/\.jsonl$/, "");
+          if (!SPLITS.includes(split as DatasetSplit)) continue;
+          let cases: number | null = null;
+          try {
+            cases = parseDatasetJsonl(readFileSync(join(versionDir, f), "utf8")).length;
+          } catch {
+            // hand-edited into invalidity — listed with cases: null so the UI can flag it
+          }
+          out.push({ name, version, split, cases });
+        }
+      }
+    }
+    return out.sort(
+      (a, b) =>
+        a.name.localeCompare(b.name) ||
+        a.version.localeCompare(b.version) ||
+        a.split.localeCompare(b.split),
+    );
+  }
+
   // -------------------------------------------------------------------------
   // HTTP fetch handler.
   // -------------------------------------------------------------------------
@@ -462,6 +535,246 @@ export async function startStudioServer(
       }
       writeFileSync(fp, next, { mode: 0o600 });
       return jsonResponse({ name, graderName: result.grader.name, yaml: next });
+    }
+
+    // ---- dataset builder ---------------------------------------------------
+    // Same replay-don't-trust envelope as the grader builder. A compiled
+    // dataset is two artifacts written together: the spec's `dataset:`
+    // coordinate block and the JSONL case file under <workspace>/datasets/.
+    function replayDatasetState(state: DatasetBuilderState): DatasetBuilderState {
+      let replayed = startDatasetBuilder();
+      for (const answer of state.answers ?? []) replayed = answerDataset(replayed, answer);
+      return replayed;
+    }
+    // A coordinate is immutable once written: storing different cases at an
+    // existing {name, version, split} is a 409 (bump the version instead);
+    // identical content is idempotent. Returns the error Response, or null
+    // when the write may proceed.
+    function datasetConflict(
+      fp: string,
+      result: ReturnType<typeof compileDataset>,
+    ): Response | null {
+      if (!existsSync(fp)) return null;
+      let existing: ReturnType<typeof parseDatasetJsonl>;
+      try {
+        existing = parseDatasetJsonl(readFileSync(fp, "utf8"));
+      } catch (err) {
+        return jsonResponse(
+          {
+            error:
+              "a dataset file already exists at this coordinate but is invalid — fix it or bump the version",
+            detail: (err as Error).message,
+            path: result.path,
+          },
+          409,
+        );
+      }
+      if (canonicalJson(existing) !== canonicalJson(result.cases)) {
+        return jsonResponse(
+          {
+            error:
+              "different cases are already stored at this coordinate — bump the version instead of editing a published dataset",
+            path: result.path,
+          },
+          409,
+        );
+      }
+      return null;
+    }
+    function writeDatasetFile(fp: string, result: ReturnType<typeof compileDataset>): void {
+      if (existsSync(fp)) return; // identical content (conflict-checked) — keep the original file
+      mkdirSync(dirname(fp), { recursive: true });
+      writeFileSync(fp, result.jsonl, { mode: 0o600 });
+    }
+    if (p === "/api/dataset-wizard/start" && m === "POST") {
+      const state = startDatasetBuilder();
+      return jsonResponse({ state, nextQuestion: nextDatasetQuestion(state) ?? null });
+    }
+    if (p === "/api/dataset-wizard/step" && m === "POST") {
+      const body = (await req.json()) as { state?: DatasetBuilderState; answer?: DatasetAnswer };
+      if (!body.state || !body.answer) return jsonResponse({ error: "state+answer required" }, 400);
+      try {
+        const next = answerDataset(replayDatasetState(body.state), body.answer);
+        return jsonResponse({ state: next, nextQuestion: nextDatasetQuestion(next) ?? null });
+      } catch (err) {
+        return jsonResponse({ error: (err as Error).message }, 400);
+      }
+    }
+    if (p === "/api/dataset-wizard/compile" && m === "POST") {
+      const body = (await req.json()) as { state?: DatasetBuilderState };
+      if (!body.state) return jsonResponse({ error: "state required" }, 400);
+      try {
+        return jsonResponse(compileDataset(replayDatasetState(body.state)));
+      } catch (err) {
+        return jsonResponse({ error: (err as Error).message }, 400);
+      }
+    }
+    if (p === "/api/datasets" && m === "GET") {
+      return jsonResponse({ datasets: listDatasets() });
+    }
+    if (p === "/api/datasets" && m === "POST") {
+      const body = (await req.json()) as { state?: DatasetBuilderState };
+      if (!body.state) return jsonResponse({ error: "state required" }, 400);
+      let result: ReturnType<typeof compileDataset>;
+      try {
+        result = compileDataset(replayDatasetState(body.state));
+      } catch (err) {
+        return jsonResponse({ error: (err as Error).message }, 400);
+      }
+      const fp = datasetFilePath(
+        result.dataset.name,
+        result.dataset.version,
+        result.dataset.split,
+      );
+      const conflict = datasetConflict(fp, result);
+      if (conflict) return conflict;
+      const unchanged = existsSync(fp);
+      writeDatasetFile(fp, result);
+      return jsonResponse(
+        {
+          dataset: result.dataset,
+          path: result.path,
+          caseCount: result.cases.length,
+          ...(unchanged ? { unchanged: true } : {}),
+        },
+        unchanged ? 200 : 201,
+      );
+    }
+    const mdg = /^\/api\/datasets\/([A-Za-z0-9-]+)\/([A-Za-z0-9._-]+)\/(train|dev|test)$/.exec(p);
+    if (mdg && m === "GET") {
+      const dname = mdg[1] as string;
+      const dversion = mdg[2] as string;
+      const dsplit = mdg[3] as DatasetSplit;
+      if (!isDatasetNameSafe(dname) || !isDatasetVersionSafe(dversion)) {
+        return jsonResponse({ error: "unsafe dataset coordinate" }, 400);
+      }
+      const fp = datasetFilePath(dname, dversion, dsplit);
+      if (!existsSync(fp)) return jsonResponse({ error: "not found" }, 404);
+      try {
+        const cases = parseDatasetJsonl(readFileSync(fp, "utf8"));
+        return jsonResponse({
+          dataset: { name: dname, version: dversion, split: dsplit },
+          cases,
+          path: `datasets/${dname}/${dversion}/${dsplit}.jsonl`,
+        });
+      } catch (err) {
+        return jsonResponse(
+          { error: "dataset file invalid", detail: (err as Error).message },
+          422,
+        );
+      }
+    }
+    const mds = /^\/api\/specs\/([a-z0-9-]+)\/dataset$/i.exec(p);
+    if (mds && m === "POST") {
+      const name = mds[1] as string;
+      if (!safeName(name)) return jsonResponse({ error: "unsafe name" }, 400);
+      const fp = specPath(name);
+      // Drain + compile the request BEFORE touching any file — same
+      // stale-read discipline as the grader append handler above.
+      const body = (await req.json()) as {
+        state?: DatasetBuilderState;
+        create?: { model?: unknown; instructions?: unknown };
+      };
+      if (!body.state) return jsonResponse({ error: "state required" }, 400);
+      let result: ReturnType<typeof compileDataset>;
+      try {
+        result = compileDataset(replayDatasetState(body.state));
+      } catch (err) {
+        return jsonResponse({ error: (err as Error).message }, 400);
+      }
+      if (
+        body.create !== undefined &&
+        (body.create === null ||
+          typeof body.create !== "object" ||
+          typeof body.create.model !== "string" ||
+          typeof body.create.instructions !== "string")
+      ) {
+        return jsonResponse({ error: "create requires { model, instructions } strings" }, 400);
+      }
+      const dataFp = datasetFilePath(
+        result.dataset.name,
+        result.dataset.version,
+        result.dataset.split,
+      );
+      const conflict = datasetConflict(dataFp, result);
+      if (conflict) return conflict;
+
+      // Missing spec + create → wrap the dataset in a starter eval spec.
+      // This is what lets the Studio author an eval end to end: the spec
+      // wizard has no eval target, so the Datasets tab births the spec.
+      if (!existsSync(fp)) {
+        if (!body.create) {
+          return jsonResponse(
+            {
+              error: "spec not found",
+              hint: "pass create: { model, instructions } to create a new eval spec around this dataset",
+            },
+            404,
+          );
+        }
+        let starter: string;
+        try {
+          starter = buildEvalSpecStarterYaml(result, {
+            specName: name,
+            model: body.create.model as string,
+            instructions: body.create.instructions as string,
+          });
+          parseSpec(starter); // defensive: never persist a spec the parser rejects
+        } catch (err) {
+          const status = err instanceof DatasetBuilderError ? 400 : 422;
+          return jsonResponse({ error: "create failed", detail: (err as Error).message }, status);
+        }
+        writeDatasetFile(dataFp, result);
+        writeFileSync(fp, starter, { mode: 0o600 });
+        return jsonResponse(
+          {
+            name,
+            created: true,
+            dataset: result.dataset,
+            yaml: starter,
+            datasetPath: result.path,
+            caseCount: result.cases.length,
+          },
+          201,
+        );
+      }
+
+      const yaml = readFileSync(fp, "utf8");
+      // LOOSE pre-parse, mirroring the grader append: drafts are allowed,
+      // but only an eval target can carry a dataset block. The strict
+      // parse below remains the persistence gate.
+      let parsed: { target?: unknown };
+      try {
+        parsed = parseYaml(yaml) as typeof parsed;
+      } catch (err) {
+        return jsonResponse({ error: "spec invalid", detail: (err as Error).message }, 422);
+      }
+      if (parsed === null || typeof parsed !== "object" || parsed.target !== "eval") {
+        return jsonResponse(
+          { error: "spec is not an eval target", target: parsed?.target ?? null },
+          400,
+        );
+      }
+      let next: string;
+      try {
+        next = setDatasetInSpecYaml(yaml, result.yamlBlock);
+        parseSpec(next); // defensive: never persist a spec the parser rejects
+      } catch (err) {
+        const status = err instanceof DatasetBuilderError ? 400 : 422;
+        return jsonResponse(
+          { error: "set dataset failed", detail: (err as Error).message },
+          status,
+        );
+      }
+      writeDatasetFile(dataFp, result);
+      writeFileSync(fp, next, { mode: 0o600 });
+      return jsonResponse({
+        name,
+        dataset: result.dataset,
+        yaml: next,
+        datasetPath: result.path,
+        caseCount: result.cases.length,
+      });
     }
 
     // ---- runs -----------------------------------------------------------

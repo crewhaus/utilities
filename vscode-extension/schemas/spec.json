@@ -101,7 +101,16 @@
         "name": { "type": "string", "minLength": 1 },
         "target": { "const": "eval" },
         "agent": { "type": "object" },
-        "dataset": { "type": "object" },
+        "dataset": {
+          "type": "object",
+          "required": ["name", "version"],
+          "properties": {
+            "name": { "type": "string", "minLength": 1 },
+            "version": { "type": "string", "minLength": 1 },
+            "split": { "enum": ["train", "dev", "test"] }
+          },
+          "additionalProperties": false
+        },
         "graders": {
           "type": "array",
           "items": {

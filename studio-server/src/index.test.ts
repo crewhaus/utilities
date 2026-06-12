@@ -771,3 +771,342 @@ describe("studio-server — grader state is replayed, never trusted", () => {
     }
   });
 });
+
+describe("studio-server — dataset builder endpoints", () => {
+  const EVAL_YAML =
+    'name: e1\ntarget: eval\nagent:\n  model: claude-sonnet-4-6\n  instructions: answer briefly\ndataset:\n  name: support-tickets\n  version: "1"\n  split: dev\ngraders:\n  - name: contains\n    opts:\n      substring: hello\n';
+
+  // Drive the full dataset state machine over HTTP and return the final state.
+  async function buildDatasetState(
+    port: number,
+    answers: ReadonlyArray<unknown>,
+  ): Promise<unknown> {
+    const start = await fetch(`http://localhost:${port}/api/dataset-wizard/start`, {
+      method: "POST",
+    }).then((r) => r.json() as Promise<{ state: unknown }>);
+    let state = start.state;
+    for (const answer of answers) {
+      const r = await fetch(`http://localhost:${port}/api/dataset-wizard/step`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ state, answer }),
+      });
+      expect(r.status).toBe(200);
+      state = ((await r.json()) as { state: unknown }).state;
+    }
+    return state;
+  }
+
+  const manualAnswers = (version: string, input: string): ReadonlyArray<unknown> => [
+    { question: "source", value: "manual" },
+    { question: "datasetName", value: "support-tickets" },
+    { question: "version", value: version },
+    { question: "split", value: undefined },
+    { question: "cases", value: [{ input, expected_output: "hi there" }] },
+  ];
+
+  test("POST /api/dataset-wizard/start → step → compile produces both artifacts", async () => {
+    const root = newRoot();
+    const server = await startStudioServer({
+      workspaceDir: root,
+      pluginRoot: join(root, "plugins"),
+    });
+    try {
+      const state = await buildDatasetState(server.port, manualAnswers("2", "hello"));
+      const compiled = await fetch(`http://localhost:${server.port}/api/dataset-wizard/compile`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ state }),
+      }).then(
+        (r) =>
+          r.json() as Promise<{
+            dataset: { name: string; version: string; split: string };
+            yamlBlock: string;
+            jsonl: string;
+            path: string;
+          }>,
+      );
+      expect(compiled.dataset).toEqual({ name: "support-tickets", version: "2", split: "dev" });
+      expect(compiled.yamlBlock).toBe('dataset:\n  name: support-tickets\n  version: "2"');
+      expect(compiled.jsonl).toBe(
+        '{"id":"case-001","input":"hello","expected_output":"hi there"}\n',
+      );
+      expect(compiled.path).toBe("datasets/support-tickets/2/dev.jsonl");
+    } finally {
+      await server.stop();
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test("POST /api/dataset-wizard/step rejects invalid answers with 400 + message", async () => {
+    const root = newRoot();
+    const server = await startStudioServer({
+      workspaceDir: root,
+      pluginRoot: join(root, "plugins"),
+    });
+    try {
+      const start = await fetch(`http://localhost:${server.port}/api/dataset-wizard/start`, {
+        method: "POST",
+      }).then((r) => r.json() as Promise<{ state: unknown }>);
+      const r = await fetch(`http://localhost:${server.port}/api/dataset-wizard/step`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          state: start.state,
+          answer: { question: "source", value: "csv" },
+        }),
+      });
+      expect(r.status).toBe(400);
+      expect(((await r.json()) as { error: string }).error).toContain("unknown case source");
+    } finally {
+      await server.stop();
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test("POST /api/datasets writes the sidecar; GET list + GET one read it back; conflicts 409", async () => {
+    const root = newRoot();
+    const server = await startStudioServer({
+      workspaceDir: root,
+      pluginRoot: join(root, "plugins"),
+    });
+    try {
+      const state = await buildDatasetState(server.port, manualAnswers("2", "hello"));
+      const save = (s: unknown) =>
+        fetch(`http://localhost:${server.port}/api/datasets`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ state: s }),
+        });
+
+      const created = await save(state);
+      expect(created.status).toBe(201);
+      const createdBody = (await created.json()) as { path: string; caseCount: number };
+      expect(createdBody.path).toBe("datasets/support-tickets/2/dev.jsonl");
+      expect(createdBody.caseCount).toBe(1);
+      expect(readFileSync(join(root, "datasets", "support-tickets", "2", "dev.jsonl"), "utf8")).toBe(
+        '{"id":"case-001","input":"hello","expected_output":"hi there"}\n',
+      );
+
+      // Identical content is idempotent.
+      const again = await save(state);
+      expect(again.status).toBe(200);
+      expect(((await again.json()) as { unchanged?: boolean }).unchanged).toBe(true);
+
+      // Different cases at the same coordinate: immutable-once-written.
+      const different = await buildDatasetState(server.port, manualAnswers("2", "goodbye"));
+      const conflict = await save(different);
+      expect(conflict.status).toBe(409);
+      expect(((await conflict.json()) as { error: string }).error).toContain("bump the version");
+
+      const list = await fetch(`http://localhost:${server.port}/api/datasets`).then(
+        (r) =>
+          r.json() as Promise<{
+            datasets: Array<{ name: string; version: string; split: string; cases: number | null }>;
+          }>,
+      );
+      expect(list.datasets).toEqual([
+        { name: "support-tickets", version: "2", split: "dev", cases: 1 },
+      ]);
+
+      const one = await fetch(
+        `http://localhost:${server.port}/api/datasets/support-tickets/2/dev`,
+      );
+      expect(one.status).toBe(200);
+      const oneBody = (await one.json()) as { cases: Array<{ id: string; input: string }> };
+      expect(oneBody.cases).toEqual([
+        { id: "case-001", input: "hello", expected_output: "hi there" },
+      ] as never);
+
+      // 404 for a missing coordinate; 422 for a hand-broken file.
+      expect(
+        (await fetch(`http://localhost:${server.port}/api/datasets/support-tickets/9/dev`))
+          .status,
+      ).toBe(404);
+      writeFileSync(join(root, "datasets", "support-tickets", "2", "dev.jsonl"), "{nope\n");
+      const broken = await fetch(
+        `http://localhost:${server.port}/api/datasets/support-tickets/2/dev`,
+      );
+      expect(broken.status).toBe(422);
+      // …re-saving over a hand-broken file is also a 409 (never silently
+      // overwrite content we can no longer compare), with its own message.
+      const overBroken = await save(state);
+      expect(overBroken.status).toBe(409);
+      expect(((await overBroken.json()) as { error: string }).error).toContain("is invalid");
+      // …and the broken file shows up in the list with cases: null.
+      const relist = await fetch(`http://localhost:${server.port}/api/datasets`).then(
+        (r) => r.json() as Promise<{ datasets: Array<{ cases: number | null }> }>,
+      );
+      expect(relist.datasets[0]?.cases).toBeNull();
+    } finally {
+      await server.stop();
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test("POST /api/specs/:name/dataset replaces the spec's dataset block and writes the sidecar", async () => {
+    const root = newRoot();
+    const server = await startStudioServer({
+      workspaceDir: root,
+      pluginRoot: join(root, "plugins"),
+    });
+    try {
+      const create = await fetch(`http://localhost:${server.port}/api/specs`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name: "e1", yaml: EVAL_YAML }),
+      });
+      expect(create.status).toBe(201);
+      const state = await buildDatasetState(server.port, manualAnswers("2", "hello"));
+      const set = await fetch(`http://localhost:${server.port}/api/specs/e1/dataset`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ state }),
+      });
+      expect(set.status).toBe(200);
+      const body = (await set.json()) as { yaml: string; datasetPath: string };
+      expect(body.yaml).toContain('version: "2"');
+      expect(body.yaml).not.toContain('version: "1"');
+      expect(body.datasetPath).toBe("datasets/support-tickets/2/dev.jsonl");
+      expect(readFileSync(join(root, "datasets", "support-tickets", "2", "dev.jsonl"), "utf8")).toBe(
+        '{"id":"case-001","input":"hello","expected_output":"hi there"}\n',
+      );
+      // GET strictly re-parses the stored spec, so a 200 proves the
+      // written YAML is still valid under @crewhaus/spec.
+      const get = await fetch(`http://localhost:${server.port}/api/specs/e1`);
+      expect(get.status).toBe(200);
+    } finally {
+      await server.stop();
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test("POST /api/specs/:name/dataset with create births a starter eval spec (end-to-end path)", async () => {
+    const root = newRoot();
+    const server = await startStudioServer({
+      workspaceDir: root,
+      pluginRoot: join(root, "plugins"),
+    });
+    try {
+      const state = await buildDatasetState(server.port, manualAnswers("1", "hello"));
+      const missing = await fetch(`http://localhost:${server.port}/api/specs/ticket-eval/dataset`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ state }),
+      });
+      expect(missing.status).toBe(404);
+      expect(((await missing.json()) as { hint: string }).hint).toContain("create");
+
+      const created = await fetch(
+        `http://localhost:${server.port}/api/specs/ticket-eval/dataset`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            state,
+            create: { model: "claude-sonnet-4-6", instructions: "Answer briefly." },
+          }),
+        },
+      );
+      expect(created.status).toBe(201);
+      const body = (await created.json()) as { created: boolean; yaml: string };
+      expect(body.created).toBe(true);
+      expect(body.yaml).toContain("target: eval");
+      expect(body.yaml).toContain("- name: exact_match");
+      // The new spec is strictly valid and listed as an eval target.
+      const get = await fetch(`http://localhost:${server.port}/api/specs/ticket-eval`);
+      expect(get.status).toBe(200);
+      const parsed = (await get.json()) as { parsed: { target: string } };
+      expect(parsed.parsed.target).toBe("eval");
+    } finally {
+      await server.stop();
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test("error contract: 404 no-create, 400 bad create/non-eval/forged state, 409 sidecar conflict, 422 broken spec, 400 flow-style", async () => {
+    const root = newRoot();
+    const server = await startStudioServer({
+      workspaceDir: root,
+      pluginRoot: join(root, "plugins"),
+    });
+    try {
+      const state = await buildDatasetState(server.port, manualAnswers("1", "hello"));
+      const post = (name: string, body: unknown) =>
+        fetch(`http://localhost:${server.port}/api/specs/${name}/dataset`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(body),
+        });
+
+      // Missing body state.
+      expect((await post("e1", {})).status).toBe(400);
+      // Malformed create payload.
+      expect((await post("nope", { state, create: { model: 5 } })).status).toBe(400);
+
+      // Non-eval target.
+      await fetch(`http://localhost:${server.port}/api/specs`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          name: "cli-spec",
+          yaml: "name: cli-spec\ntarget: cli\nagent:\n  model: m\n  instructions: i\n",
+        }),
+      });
+      const nonEval = await post("cli-spec", { state });
+      expect(nonEval.status).toBe(400);
+      expect(((await nonEval.json()) as { error: string }).error).toContain("not an eval target");
+
+      // Forged state never went through answerDataset: the traversal-shaped
+      // name is rejected on replay, so no path is ever built from it.
+      const forged = {
+        step: 5,
+        answers: [
+          { question: "source", value: "manual" },
+          { question: "datasetName", value: "../../escape" },
+          { question: "version", value: "1" },
+          { question: "split" },
+          { question: "cases", value: [{ input: "x" }] },
+        ],
+      };
+      const forgedRes = await post("cli-spec", { state: forged });
+      expect(forgedRes.status).toBe(400);
+      expect(((await forgedRes.json()) as { error: string }).error).toContain("URL path segment");
+
+      // Sidecar conflict: store different cases at the coordinate first.
+      const other = await buildDatasetState(server.port, manualAnswers("1", "goodbye"));
+      expect(
+        (
+          await fetch(`http://localhost:${server.port}/api/datasets`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ state: other }),
+          })
+        ).status,
+      ).toBe(201);
+      await fetch(`http://localhost:${server.port}/api/specs`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name: "e1", yaml: EVAL_YAML }),
+      });
+      expect((await post("e1", { state })).status).toBe(409);
+
+      // Unparseable spec YAML → 422, nothing persisted.
+      writeFileSync(join(root, "broken.yaml"), "name: [unclosed\n");
+      const freshState = await buildDatasetState(server.port, manualAnswers("3", "hello"));
+      expect((await post("broken", { state: freshState })).status).toBe(422);
+
+      // Flow-style dataset: the loose parse passes, the splice refuses.
+      writeFileSync(
+        join(root, "flow.yaml"),
+        'name: flow\ntarget: eval\nagent:\n  model: m\n  instructions: i\ndataset: {name: x, version: "1"}\ngraders:\n  - name: exact_match\n',
+      );
+      const flow = await post("flow", { state: freshState });
+      expect(flow.status).toBe(400);
+      expect(((await flow.json()) as { detail: string }).detail).toContain("flow style");
+    } finally {
+      await server.stop();
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+});

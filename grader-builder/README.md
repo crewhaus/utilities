@@ -127,6 +127,7 @@ The package has no runtime dependencies — the round-trip against the real pars
 
 - [studio-server](../studio-server/) — drives the state machine over HTTP at `POST /api/grader-wizard/{start,step,compile}` and appends via `POST /api/specs/:name/graders`
 - [studio-ui](../studio-ui/) — the "Graders" tab form UI
+- [dataset-builder](../dataset-builder/) — the same builder pattern for the eval spec's `dataset:`; together they author a complete eval spec
 - [wizard](../wizard/) — the same state-machine pattern for whole-spec creation
 
 ## Related

@@ -37,10 +37,14 @@ async function* lines(): AsyncGenerator<string, void, void> {
 }
 
 const lineIter = lines();
+let stdinClosed = false;
 async function readLine(prompt: string): Promise<string> {
   process.stdout.write(prompt);
   const next = await lineIter.next();
-  if (next.done) return "";
+  if (next.done) {
+    stdinClosed = true;
+    return "";
+  }
   return next.value.trim();
 }
 
@@ -128,6 +132,9 @@ while (q !== undefined) {
   } catch (err) {
     if (err instanceof GraderBuilderError) {
       process.stderr.write(`${err.message}\n`);
+      // Re-asking after EOF would loop forever on the same empty answer —
+      // truncated piped input exits non-zero instead.
+      if (stdinClosed) process.exit(1);
       continue; // re-ask the same question
     }
     throw err;

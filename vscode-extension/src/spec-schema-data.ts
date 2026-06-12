@@ -142,14 +142,18 @@ const channelShape = {
   },
 } as const;
 
-function shapeWithTarget(target: string, extra: Record<string, unknown> = {}) {
+function shapeWithTarget(
+  target: string,
+  extra: Record<string, unknown> = {},
+  opts: { permissions?: boolean } = {},
+) {
   return {
     type: "object",
     required: ["name", "target"],
     properties: {
       name: { type: "string", minLength: 1 },
       target: { const: target },
-      permissions,
+      ...(opts.permissions === false ? {} : { permissions }),
       ...extra,
     },
   } as const;
@@ -190,9 +194,27 @@ export const specSchemaJson = {
     shapeWithTarget("browser", {
       driver: { type: "object" },
     }),
+    // Note the third arg: the published evalSchema is .strict() and has NO
+    // permissions key (eval is the leanest target — only failure_taxonomy
+    // among the cross-cutting blocks), so offering `permissions:` here
+    // would autocomplete a block parseSpec rejects wholesale.
     shapeWithTarget("eval", {
       agent: { type: "object" },
-      dataset: { type: "object" },
+      // The dataset is a registry coordinate, exactly as @crewhaus/spec's
+      // eval target parses it — name + version resolve a JSONL case file
+      // (the studio-server stores them under <workspace>/datasets/);
+      // split defaults to "dev" when omitted. Strict like the parser, so
+      // the IDE flags inline `cases:` keys @crewhaus/spec would reject.
+      dataset: {
+        type: "object",
+        required: ["name", "version"],
+        properties: {
+          name: { type: "string", minLength: 1 },
+          version: { type: "string", minLength: 1 },
+          split: { enum: ["train", "dev", "test"] },
+        },
+        additionalProperties: false,
+      },
       // Grader items are the strict `{ name, opts? }` entries
       // @crewhaus/spec's eval target parses — `name` is one of the six
       // grader types @crewhaus/eval-grader consumes. opts is kept
@@ -233,6 +255,6 @@ export const specSchemaJson = {
           additionalProperties: false,
         },
       },
-    }),
+    }, { permissions: false }),
   ],
 } as const;

@@ -1,6 +1,6 @@
 {
   "name": "@crewhaus/grader-builder",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "type": "module",
   "description": "Guided eval-grader creation for eval specs (Section 26 Studio)",
   "main": "src/index.ts",
