@@ -1,6 +1,6 @@
 {
   "name": "@crewhaus/studio-server",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "type": "module",
   "description": "Bun.serve daemon — spec CRUD, run inspection (SSE), eval-result inspection, plugin discovery (Section 26 Studio)",
   "main": "src/index.ts",
@@ -13,6 +13,7 @@
     "test": "bun test src"
   },
   "dependencies": {
+    "@crewhaus/dataset-builder": "workspace:*",
     "@crewhaus/errors": "^0.1.2",
     "@crewhaus/grader-builder": "workspace:*",
     "@crewhaus/graph-visualizer": "workspace:*",

@@ -8,13 +8,15 @@ import {
 } from "./index.js";
 
 describe("studio-ui (T1)", () => {
-  test("renderStudioHtml emits a complete HTML document with the four nav tabs", () => {
+  test("renderStudioHtml emits a complete HTML document with the five nav tabs", () => {
     const html = renderStudioHtml();
     expect(html.startsWith("<!doctype html>")).toBe(true);
     expect(html).toContain("<title>CrewHaus Studio</title>");
     expect(html).toContain('id="tab-specs"');
     expect(html).toContain('id="tab-wizard"');
     expect(html).toContain('id="tab-graders"');
+    expect(html).toContain('id="tab-datasets"');
+    expect(html).toContain('id="view-datasets"');
     expect(html).toContain('id="tab-plugins"');
   });
 
@@ -23,12 +25,13 @@ describe("studio-ui (T1)", () => {
     expect(html).toContain("<title>Custom Title</title>");
   });
 
-  test("getStudioJs is callable + non-empty + references all four views", () => {
+  test("getStudioJs is callable + non-empty + references all five views", () => {
     const js = getStudioJs();
     expect(js.length).toBeGreaterThan(500);
     expect(js).toContain("renderSpecs");
     expect(js).toContain("renderWizard");
     expect(js).toContain("renderGraders");
+    expect(js).toContain("renderDatasets");
     expect(js).toContain("renderPlugins");
     expect(js).toContain("/api/specs");
     expect(js).toContain("/api/wizard/start");
@@ -56,6 +59,27 @@ describe("studio-ui (T1)", () => {
     ]) {
       expect(js).toContain(`'${kind}'`);
     }
+  });
+
+  test("datasets tab JS drives the dataset-wizard endpoints, save, and spec write-back routes", () => {
+    const js = getStudioJs();
+    expect(js).toContain("/api/dataset-wizard/start");
+    expect(js).toContain("/api/dataset-wizard/step");
+    expect(js).toContain("/api/dataset-wizard/compile");
+    expect(js).toContain("/api/datasets");
+    expect(js).toContain("/dataset'");
+    expect(js).toContain("navigator.clipboard.writeText");
+    // Both compiled artifacts are previewed.
+    expect(js).toContain("yamlBlock");
+    expect(js).toContain("jsonl");
+    // The create path (starter eval spec) sends model + instructions.
+    expect(js).toContain("create: { model:");
+    // One field per coordinate question + the two source branches.
+    for (const qid of ["datasetName", "version", "split", "cases", "jsonl"]) {
+      expect(js).toContain(`'${qid}'`);
+    }
+    expect(js).toContain("'manual'");
+    expect(js).toContain("case-editor");
   });
 });
 

@@ -1,6 +1,6 @@
 # `@crewhaus/studio-server`
 
-Bun.serve daemon for the CrewHaus Studio — spec CRUD, wizard + grader-builder endpoints, live run inspection over SSE, plugin discovery, and graph layout. The studio-ui (and any third-party UI) talks to this HTTP surface.
+Bun.serve daemon for the CrewHaus Studio — spec CRUD, wizard + grader-builder + dataset-builder endpoints, workspace dataset storage, live run inspection over SSE, plugin discovery, and graph layout. The studio-ui (and any third-party UI) talks to this HTTP surface.
 
 ## Try it
 
@@ -78,6 +78,13 @@ await startStudioServer({
 | `POST` | `/api/grader-wizard/step` | `{ state, answer }` | `{ state, nextQuestion }`; `400 { error }` on invalid answers (shown inline by the UI) |
 | `POST` | `/api/grader-wizard/compile` | `{ state }` | `{ grader, yamlEntry, yamlBlock }` |
 | `POST` | `/api/specs/:name/graders` | `{ state }` | appends the compiled grader to the eval spec's `graders:`; `{ name, graderName, yaml }` or 404 / 400 (non-eval, incomplete) / 409 (identical grader — same `name` + `opts` — already present) / 422 |
+| `POST` | `/api/dataset-wizard/start` | — | `{ state, nextQuestion }` |
+| `POST` | `/api/dataset-wizard/step` | `{ state, answer }` | `{ state, nextQuestion }`; `400 { error }` on invalid answers (shown inline by the UI) |
+| `POST` | `/api/dataset-wizard/compile` | `{ state }` | `{ dataset, cases, yamlBlock, jsonl, path }` |
+| `GET` | `/api/datasets` | — | `{ datasets: { name, version, split, cases }[] }` — `cases` is the count, or `null` for an invalid file |
+| `GET` | `/api/datasets/:name/:version/:split` | — | `{ dataset, cases, path }` or 404 / 422 (file no longer validates) |
+| `POST` | `/api/datasets` | `{ state }` | writes `datasets/<name>/<version>/<split>.jsonl`; `201 { dataset, path, caseCount }`, `200 + unchanged: true` when identical content already stored, or 409 (different cases at the coordinate — bump the version) |
+| `POST` | `/api/specs/:name/dataset` | `{ state, create? }` | sets the eval spec's `dataset:` block **and** writes the JSONL sidecar; `{ name, dataset, yaml, datasetPath, caseCount }` or 404 (spec missing, no `create`) / 400 / 409 / 422. With `create: { model, instructions }` a missing spec is created as a starter eval spec around the dataset → `201 + created: true` |
 | `POST` | `/api/runs` | `{ specName, prompt }` | `201 { runId }` |
 | `GET` | `/api/runs/:runId/events` | — | SSE stream of `data: <json>` events, terminated by `event: done` |
 | `POST` | `/api/runs/:runId/cancel` | — | aborts the dispatcher's signal |
@@ -89,7 +96,9 @@ await startStudioServer({
 
 Spec names must match `/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/i` (single alnum, or alnum-…-alnum, no leading/trailing hyphen).
 
-The graders append pre-checks the spec with a *loose* YAML parse, so the first grader can be appended to a draft eval spec (`graders: []` or no `graders:` key yet — not yet valid under `@crewhaus/spec`, which requires at least one grader). Persistence is gated by the real `@crewhaus/spec` parse of the resulting spec: on failure the server returns 422 and writes nothing.
+The graders append pre-checks the spec with a *loose* YAML parse, so the first grader can be appended to a draft eval spec (`graders: []` or no `graders:` key yet — not yet valid under `@crewhaus/spec`, which requires at least one grader). Persistence is gated by the real `@crewhaus/spec` parse of the resulting spec: on failure the server returns 422 and writes nothing. `POST /api/specs/:name/dataset` follows the same discipline (loose pre-parse, strict persistence gate) and replaces the `dataset:` block in place — `dataset:` is a single mapping, not a growable list.
+
+Dataset coordinates are immutable once written: storing different cases at an existing `{name, version, split}` is a 409 (bump the version instead), identical content is idempotent. Wizard/builder `state` payloads are never trusted — every endpoint replays the answers through the validating state machine, so a hand-crafted state (wrong types, traversal-shaped names) is a 400, not a persisted file.
 
 ## API surface
 
@@ -105,7 +114,7 @@ The graders append pre-checks the spec with a *loose* YAML parse, so the first g
 
 ## Pairs with
 
-- Consumes [wizard](../wizard/), [grader-builder](../grader-builder/), [scaffold-templates](../scaffold-templates/), [studio-plugin-sdk](../studio-plugin-sdk/), [graph-visualizer](../graph-visualizer/) directly
+- Consumes [wizard](../wizard/), [grader-builder](../grader-builder/), [dataset-builder](../dataset-builder/), [scaffold-templates](../scaffold-templates/), [studio-plugin-sdk](../studio-plugin-sdk/), [graph-visualizer](../graph-visualizer/) directly
 - Returns trace events shaped for [trace-viewer](../trace-viewer/) to render
 - The default UI is [studio-ui](../studio-ui/) — `/` ships a minimal smoke-probe page; the full SPA is rendered by wiring `renderStudioHtml` into your own `Bun.serve` handler (see [studio-ui/README.md](../studio-ui/))
 

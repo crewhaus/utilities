@@ -4,7 +4,7 @@
  * Vanilla TS module that exports an HTML string + a stand-alone JS
  * bundle the studio-server can serve at `/`. v0 ships a minimal
  * single-page app:
- *   - top nav: Specs · Wizard · Graders · Plugins
+ *   - top nav: Specs · Wizard · Graders · Datasets · Plugins
  *   - Specs: lists `/api/specs`, click to open the YAML in a textarea
  *     editor (no Monaco — vanilla `<textarea>` keeps deps tiny)
  *   - Wizard: walks `/api/wizard/start` → `/step` → `/compile` and
@@ -13,6 +13,11 @@
  *     `/api/grader-wizard/{start,step,compile}` for a live YAML
  *     preview with inline validation errors, then appends via
  *     `POST /api/specs/:name/graders` (or copy/paste the YAML)
+ *   - Datasets: form-based eval-dataset builder; replays through
+ *     `/api/dataset-wizard/{start,step,compile}` for live YAML + JSONL
+ *     previews, saves the case file via `POST /api/datasets`, points
+ *     an eval spec at it via `POST /api/specs/:name/dataset` — or
+ *     creates a brand-new starter eval spec around it (`create:`)
  *   - Plugins: lists `/api/plugins`
  *
  * Lit + Monaco land in a follow-up; v0 keeps the UI shipping-ready
@@ -32,7 +37,7 @@ export function renderStudioHtml(opts: RenderOptions = {}): string {
   <meta charset="utf-8" />
   <title>${title}</title>
   <style>
-    body { font-family: system-ui, sans-serif; margin: 0; }
+    body { font-family: system-ui, sans-serif; margin: 0; background: #fff; color: #111827; }
     header { padding: 16px 32px; background: #1d3a8a; color: white; }
     header h1 { margin: 0; font-size: 22px; }
     nav { padding: 12px 32px; background: #f3f4f6; display: flex; gap: 24px; }
@@ -58,6 +63,10 @@ export function renderStudioHtml(opts: RenderOptions = {}): string {
     .yaml-preview { background: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 4px; padding: 12px; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 13px; white-space: pre; overflow-x: auto; }
     button.primary { background: #1d3a8a; color: white; border: 0; border-radius: 4px; padding: 8px 16px; font: inherit; cursor: pointer; }
     button.primary:disabled { background: #9ca3af; cursor: not-allowed; }
+    .case-row { display: flex; gap: 8px; margin-top: 8px; }
+    .field .case-row input[type="text"] { width: auto; max-width: none; flex: 1; }
+    .field .case-row input[type="text"][data-case-field="id"] { flex: 0 0 120px; }
+    .case-row button { border: 1px solid #ddd; background: #fff; border-radius: 4px; cursor: pointer; padding: 0 10px; }
   </style>
 </head>
 <body>
@@ -66,12 +75,14 @@ export function renderStudioHtml(opts: RenderOptions = {}): string {
     <button id="tab-specs" class="active">Specs</button>
     <button id="tab-wizard">Wizard</button>
     <button id="tab-graders">Graders</button>
+    <button id="tab-datasets">Datasets</button>
     <button id="tab-plugins">Plugins</button>
   </nav>
   <main>
     <section id="view-specs"></section>
     <section id="view-wizard" hidden></section>
     <section id="view-graders" hidden></section>
+    <section id="view-datasets" hidden></section>
     <section id="view-plugins" hidden></section>
   </main>
   <script type="module">
@@ -89,7 +100,7 @@ ${getStudioJs()}
 export function getStudioJs(): string {
   return `
 const $ = (sel) => document.querySelector(sel);
-const tabs = ['specs', 'wizard', 'graders', 'plugins'];
+const tabs = ['specs', 'wizard', 'graders', 'datasets', 'plugins'];
 
 function activate(name) {
   for (const t of tabs) {
@@ -102,6 +113,7 @@ function activate(name) {
   if (name === 'specs') renderSpecs();
   if (name === 'wizard') renderWizard();
   if (name === 'graders') renderGraders();
+  if (name === 'datasets') renderDatasets();
   if (name === 'plugins') renderPlugins();
 }
 
@@ -536,6 +548,449 @@ async function renderGraderAttach(attach) {
   pane.appendChild(document.createTextNode(' '));
   pane.appendChild(add);
   pane.appendChild(status);
+  attach.appendChild(pane);
+}
+
+// ---- Datasets tab ---------------------------------------------------------
+// Same replay-don't-trust pattern as the Graders tab: the browser holds no
+// validation logic; field values are replayed through the headless dataset
+// state machine over HTTP (/api/dataset-wizard/start → step×N → compile)
+// and any 400 from /step is rendered inline next to the offending field.
+// A compiled dataset is two artifacts written together: the spec's
+// dataset: coordinate block and the JSONL case file the server stores
+// under <workspace>/datasets/<name>/<version>/<split>.jsonl.
+
+const DATASET_COORD_FIELDS = {
+  datasetName: { label: 'Dataset name', type: 'text', hint: 'letters, digits, hyphens — becomes datasets/<name>/<version>/<split>.jsonl' },
+  version: { label: 'Version', type: 'text', hint: 'path-safe, e.g. "1" or "2025-q2" — bump it instead of editing a published dataset' },
+  split: { label: 'Split', type: 'select', options: ['dev', 'train', 'test'], hint: 'dev (default): the split eval runs read; test is held out for final scoring' },
+};
+
+let datasetState = null; // last successfully compiled state (sent to the save/attach endpoints)
+
+function el(tag, props) {
+  const node = document.createElement(tag);
+  for (const k of Object.keys(props || {})) node[k] = props[k];
+  return node;
+}
+
+async function renderDatasets() {
+  const view = $('#view-datasets');
+  if (!view) return;
+  datasetState = null;
+  const intro = el('p', { textContent: 'Pick where the cases come from, give the dataset a coordinate (name / version / split), and watch the YAML + JSONL previews update. Save the cases to the workspace and point an eval spec at them — or create a brand-new eval spec around the dataset.' });
+  view.replaceChildren(el('h2', { textContent: 'New Dataset' }), intro);
+  const { nextQuestion: sourceQ } = await fetch('/api/dataset-wizard/start', { method: 'POST' }).then((r) => r.json());
+
+  const existing = el('div', { id: 'dataset-list' });
+  view.appendChild(existing);
+  renderDatasetList();
+
+  const cards = el('div', { className: 'kind-cards' });
+  const formWrap = el('div');
+  const previewWrap = el('div');
+  view.appendChild(cards);
+  view.appendChild(formWrap);
+  view.appendChild(previewWrap);
+
+  for (const c of sourceQ.choices) {
+    const card = el('button', { className: 'kind-card' });
+    card.dataset.source = c.value;
+    card.appendChild(el('strong', { textContent: c.label }));
+    card.appendChild(document.createTextNode(c.description));
+    card.addEventListener('click', () => {
+      for (const other of cards.querySelectorAll('.kind-card')) other.classList.remove('selected');
+      card.classList.add('selected');
+      renderDatasetForm(c.value, formWrap, previewWrap);
+    });
+    cards.appendChild(card);
+  }
+}
+
+async function renderDatasetList() {
+  const container = $('#dataset-list');
+  if (!container) return;
+  container.replaceChildren();
+  const { datasets } = await fetch('/api/datasets').then((r) => r.json());
+  if (datasets.length === 0) return;
+  const pane = el('div', { className: 'pane' });
+  pane.appendChild(el('strong', { textContent: 'In this workspace' }));
+  const ul = el('ul', { className: 'specs-list' });
+  for (const d of datasets) {
+    ul.appendChild(
+      el('li', {
+        textContent:
+          d.name + ' @ ' + d.version + ' / ' + d.split +
+          (d.cases === null ? ' — invalid file' : ' (' + d.cases + (d.cases === 1 ? ' case)' : ' cases)')),
+      }),
+    );
+  }
+  pane.appendChild(ul);
+  container.appendChild(pane);
+}
+
+function datasetField(qid) {
+  const meta = DATASET_COORD_FIELDS[qid];
+  const wrap = el('div', { className: 'field' });
+  wrap.dataset.question = qid;
+  wrap.appendChild(el('label', { textContent: meta.label }));
+  let input;
+  if (meta.type === 'select') {
+    input = el('select');
+    for (const o of meta.options) input.appendChild(el('option', { value: o, textContent: o }));
+  } else {
+    input = el('input', { type: 'text' });
+  }
+  input.dataset.question = qid;
+  wrap.appendChild(input);
+  if (meta.hint) wrap.appendChild(el('div', { className: 'hint', textContent: meta.hint }));
+  wrap.appendChild(el('div', { className: 'field-error', hidden: true }));
+  return wrap;
+}
+
+function datasetCaseRow() {
+  const row = el('div', { className: 'case-row' });
+  const input = el('input', { type: 'text', placeholder: 'input — what the agent is prompted with' });
+  input.dataset.caseField = 'input';
+  const expected = el('input', { type: 'text', placeholder: 'expected_output (optional)' });
+  expected.dataset.caseField = 'expected';
+  const id = el('input', { type: 'text', placeholder: 'id (auto)' });
+  id.dataset.caseField = 'id';
+  const remove = el('button', { textContent: '✕', title: 'Remove case' });
+  remove.addEventListener('click', () => {
+    const editor = row.parentElement;
+    row.remove();
+    if (editor) editor.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  row.appendChild(input);
+  row.appendChild(expected);
+  row.appendChild(id);
+  row.appendChild(remove);
+  return row;
+}
+
+function datasetCasesField() {
+  const wrap = el('div', { className: 'field' });
+  wrap.dataset.question = 'cases';
+  wrap.appendChild(el('label', { textContent: 'Cases' }));
+  const editor = el('div', { className: 'case-editor' });
+  editor.appendChild(datasetCaseRow());
+  wrap.appendChild(editor);
+  const add = el('button', { textContent: '+ Add case' });
+  add.style.marginTop = '8px';
+  add.addEventListener('click', () => editor.appendChild(datasetCaseRow()));
+  wrap.appendChild(add);
+  wrap.appendChild(el('div', {
+    className: 'hint',
+    textContent: 'each case: input (required), expected_output (optional — llm_judge/regex graders need none), id (optional — auto-filled case-001 style)',
+  }));
+  wrap.appendChild(el('div', { className: 'field-error', hidden: true }));
+  return wrap;
+}
+
+// Rows with every field empty are skipped, so an untouched spare row
+// never blocks the preview.
+function datasetCasesFrom(editor) {
+  const cases = [];
+  for (const row of editor.querySelectorAll('.case-row')) {
+    const get = (k) => row.querySelector('[data-case-field="' + k + '"]').value;
+    const input = get('input');
+    const expected = get('expected');
+    const id = get('id').trim();
+    if (input.trim() === '' && expected.trim() === '' && id === '') continue;
+    const c = { input: input };
+    if (expected !== '') c.expected_output = expected;
+    if (id !== '') c.id = id;
+    cases.push(c);
+  }
+  return cases;
+}
+
+function datasetCopyButton(labelText, pre) {
+  const copy = el('button', { textContent: labelText, disabled: true });
+  copy.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(pre.textContent);
+      copy.textContent = 'Copied.';
+    } catch {
+      const ta = el('textarea', { value: pre.textContent });
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      ta.remove();
+      copy.textContent = 'Copied.';
+    }
+    setTimeout(() => (copy.textContent = labelText), 1500);
+  });
+  return copy;
+}
+
+function setDatasetActionsEnabled(previewWrap, copies, enabled) {
+  for (const b of copies) b.disabled = !enabled;
+  for (const b of previewWrap.querySelectorAll('button.dataset-action')) {
+    if (enabled) b.removeAttribute('disabled');
+    else b.setAttribute('disabled', '');
+  }
+}
+
+function renderDatasetForm(source, formWrap, previewWrap) {
+  datasetState = null;
+  formWrap.replaceChildren();
+  previewWrap.replaceChildren();
+  const form = el('div', { className: 'pane' });
+  for (const qid of ['datasetName', 'version', 'split']) form.appendChild(datasetField(qid));
+  if (source === 'manual') {
+    form.appendChild(datasetCasesField());
+  } else {
+    const wrap = el('div', { className: 'field' });
+    wrap.dataset.question = 'jsonl';
+    wrap.appendChild(el('label', { textContent: 'JSONL' }));
+    const ta = el('textarea', { placeholder: '{"input": "hello", "expected_output": "hi there"}' });
+    ta.dataset.question = 'jsonl';
+    wrap.appendChild(ta);
+    wrap.appendChild(el('div', {
+      className: 'hint',
+      textContent: 'one JSON object per line: input required; id and metadata optional',
+    }));
+    wrap.appendChild(el('div', { className: 'field-error', hidden: true }));
+    form.appendChild(wrap);
+  }
+  formWrap.appendChild(form);
+
+  const yamlPreview = el('pre', {
+    className: 'yaml-preview',
+    textContent: '# fill in the fields to preview the dataset YAML',
+  });
+  const jsonlPreview = el('pre', {
+    className: 'yaml-preview',
+    textContent: '# …and the JSONL case file',
+  });
+  const copyYaml = datasetCopyButton('Copy YAML', yamlPreview);
+  const copyJsonl = datasetCopyButton('Copy JSONL', jsonlPreview);
+  previewWrap.appendChild(yamlPreview);
+  previewWrap.appendChild(copyYaml);
+  previewWrap.appendChild(jsonlPreview);
+  previewWrap.appendChild(copyJsonl);
+  const save = el('div');
+  previewWrap.appendChild(save);
+  const attach = el('div');
+  previewWrap.appendChild(attach);
+  renderDatasetSave(save);
+  renderDatasetAttach(attach);
+
+  let timer;
+  const refresh = () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => replayDataset(source, form, yamlPreview, jsonlPreview, [copyYaml, copyJsonl], previewWrap), 400);
+  };
+  form.addEventListener('input', refresh);
+  form.addEventListener('change', refresh);
+  refresh();
+}
+
+async function replayDataset(source, form, yamlPreview, jsonlPreview, copies, previewWrap) {
+  for (const errEl of form.querySelectorAll('.field-error')) {
+    errEl.hidden = true;
+    errEl.textContent = '';
+  }
+  const failTo = (qid, message) => {
+    const field = form.querySelector('[data-question="' + qid + '"] .field-error');
+    if (field) {
+      field.textContent = message;
+      field.hidden = false;
+    }
+    yamlPreview.textContent = '# ' + message;
+    jsonlPreview.textContent = '# ' + message;
+    datasetState = null;
+    setDatasetActionsEnabled(previewWrap, copies, false);
+  };
+  const answers = [{ question: 'source', value: source }];
+  for (const qid of ['datasetName', 'version']) {
+    const input = form.querySelector('[data-question="' + qid + '"] input');
+    if (input.value.trim() === '') return failTo(qid, DATASET_COORD_FIELDS[qid].label + ' is required');
+    answers.push({ question: qid, value: input.value.trim() });
+  }
+  const split = form.querySelector('[data-question="split"] select');
+  answers.push({ question: 'split', value: split.value });
+  if (source === 'manual') {
+    const cases = datasetCasesFrom(form.querySelector('.case-editor'));
+    if (cases.length === 0) return failTo('cases', 'enter at least one case (input is required)');
+    answers.push({ question: 'cases', value: cases });
+  } else {
+    const ta = form.querySelector('textarea[data-question="jsonl"]');
+    if (ta.value.trim() === '') return failTo('jsonl', 'paste at least one JSONL line');
+    answers.push({ question: 'jsonl', value: ta.value });
+  }
+  let { state } = await fetch('/api/dataset-wizard/start', { method: 'POST' }).then((r) => r.json());
+  for (const answer of answers) {
+    const res = await fetch('/api/dataset-wizard/step', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ state, answer }),
+    });
+    const body = await res.json();
+    if (!res.ok) return failTo(answer.question, body.error);
+    state = body.state;
+  }
+  const compiled = await fetch('/api/dataset-wizard/compile', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ state }),
+  }).then((r) => r.json());
+  if (compiled.error) {
+    yamlPreview.textContent = '# ' + compiled.error;
+    jsonlPreview.textContent = '# ' + compiled.error;
+    datasetState = null;
+    setDatasetActionsEnabled(previewWrap, copies, false);
+    return;
+  }
+  yamlPreview.textContent = compiled.yamlBlock;
+  jsonlPreview.textContent = compiled.jsonl;
+  datasetState = state;
+  setDatasetActionsEnabled(previewWrap, copies, true);
+}
+
+function datasetErrorText(body, res) {
+  return 'Error: ' + (body.error || res.status) + (body.detail ? ' — ' + body.detail : '');
+}
+
+function renderDatasetSave(container) {
+  container.replaceChildren();
+  const pane = el('div', { className: 'pane' });
+  pane.appendChild(el('strong', { textContent: 'Save to workspace ' }));
+  const save = el('button', { className: 'primary dataset-action', textContent: 'Save dataset', disabled: true });
+  const status = el('span');
+  status.style.marginLeft = '8px';
+  save.addEventListener('click', async () => {
+    if (!datasetState) return;
+    const res = await fetch('/api/datasets', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ state: datasetState }),
+    });
+    const body = await res.json();
+    if (res.ok) {
+      status.textContent =
+        (body.unchanged ? 'Already saved as ' : 'Saved ') + body.path + ' (' + body.caseCount + ' cases).';
+      renderDatasetList();
+    } else {
+      status.textContent = datasetErrorText(body, res);
+    }
+  });
+  pane.appendChild(save);
+  pane.appendChild(status);
+  container.appendChild(pane);
+}
+
+async function renderDatasetAttach(attach) {
+  attach.replaceChildren();
+  const { specs } = await fetch('/api/specs').then((r) => r.json());
+  const evalSpecs = specs.filter((s) => s.target === 'eval');
+  const pane = el('div', { className: 'pane' });
+
+  const openSpecButton = (status, name, prefix) => {
+    const open = el('button', { textContent: 'Open spec' });
+    open.addEventListener('click', () => {
+      activate('specs');
+      openSpec(name);
+    });
+    status.replaceChildren(document.createTextNode(prefix), open);
+  };
+
+  if (evalSpecs.length > 0) {
+    pane.appendChild(el('strong', { textContent: 'Point an eval spec at this dataset ' }));
+    const sel = el('select');
+    for (const s of evalSpecs) sel.appendChild(el('option', { value: s.name, textContent: s.name }));
+    const set = el('button', { className: 'primary dataset-action', textContent: 'Set dataset', disabled: true });
+    const status = el('span');
+    status.style.marginLeft = '8px';
+    set.addEventListener('click', async () => {
+      if (!datasetState) return;
+      const res = await fetch('/api/specs/' + sel.value + '/dataset', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ state: datasetState }),
+      });
+      const body = await res.json();
+      if (res.ok) {
+        renderDatasetList();
+        openSpecButton(status, body.name, 'Dataset set on ' + body.name + '. ');
+      } else {
+        status.textContent = datasetErrorText(body, res);
+      }
+    });
+    pane.appendChild(sel);
+    pane.appendChild(document.createTextNode(' '));
+    pane.appendChild(set);
+    pane.appendChild(status);
+    pane.appendChild(el('hr'));
+  }
+
+  // Create a brand-new eval spec around the dataset — the spec wizard has
+  // no eval target, so this is how the Studio authors an eval end to end:
+  // Datasets tab (dataset + starter spec) → Graders tab (refine graders).
+  pane.appendChild(el('strong', {
+    textContent:
+      evalSpecs.length > 0 ? 'Or create a new eval spec around it' : 'Create an eval spec around this dataset',
+  }));
+  const nameField = el('div', { className: 'field' });
+  nameField.appendChild(el('label', { textContent: 'Spec name' }));
+  const nameInput = el('input', { type: 'text', id: 'dataset-create-spec-name' });
+  nameField.appendChild(nameInput);
+  nameField.appendChild(el('div', {
+    className: 'hint',
+    textContent: 'letters, digits, hyphens — becomes <name>.yaml in the workspace',
+  }));
+  const modelField = el('div', { className: 'field' });
+  modelField.appendChild(el('label', { textContent: 'Agent model' }));
+  const modelInput = el('input', { type: 'text', value: 'claude-sonnet-4-6' });
+  modelField.appendChild(modelInput);
+  const instrField = el('div', { className: 'field' });
+  instrField.appendChild(el('label', { textContent: 'Agent instructions' }));
+  const instrInput = el('textarea', { value: 'Answer each case input.' });
+  instrField.appendChild(instrInput);
+  const create = el('button', { className: 'primary dataset-action', textContent: 'Create eval spec', disabled: true });
+  const createStatus = el('span');
+  createStatus.style.marginLeft = '8px';
+  create.addEventListener('click', async () => {
+    if (!datasetState) return;
+    const name = nameInput.value.trim();
+    if (name === '') {
+      createStatus.textContent = 'spec name is required';
+      return;
+    }
+    // Mirror the server's route charset up front — a name like "my eval"
+    // would otherwise miss the route and surface a misleading 404.
+    if (!/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/i.test(name)) {
+      createStatus.textContent = 'spec name must be letters, digits, and hyphens (no leading/trailing hyphen)';
+      return;
+    }
+    const res = await fetch('/api/specs/' + encodeURIComponent(name) + '/dataset', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        state: datasetState,
+        create: { model: modelInput.value.trim(), instructions: instrInput.value },
+      }),
+    });
+    const body = await res.json();
+    if (res.ok) {
+      renderDatasetList();
+      openSpecButton(
+        createStatus,
+        body.name,
+        (body.created ? 'Created ' : 'Dataset set on existing ') + body.name +
+          ' (default exact_match grader — refine in the Graders tab). ',
+      );
+    } else {
+      createStatus.textContent = datasetErrorText(body, res);
+    }
+  });
+  pane.appendChild(nameField);
+  pane.appendChild(modelField);
+  pane.appendChild(instrField);
+  pane.appendChild(create);
+  pane.appendChild(createStatus);
   attach.appendChild(pane);
 }
 

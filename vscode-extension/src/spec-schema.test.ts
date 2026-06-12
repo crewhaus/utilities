@@ -89,6 +89,47 @@ describe("spec-schema (T1)", () => {
       ) as JsonSchemaShape,
     );
   });
+
+  test("eval shape offers no permissions block (inline + on-disk)", () => {
+    // The published @crewhaus/spec evalSchema is .strict() and has no
+    // permissions key — autocompleting one would produce specs parseSpec
+    // rejects wholesale. Other targets keep it (their parsers accept it).
+    const check = (schema: JsonSchemaShape) => {
+      const ev = schema.oneOf.find((c) => c.properties?.target?.const === "eval");
+      expect(ev).toBeDefined();
+      expect(Object.keys(ev?.properties ?? {})).not.toContain("permissions");
+    };
+    const inline = getSpecJsonSchema() as unknown as JsonSchemaShape;
+    check(inline);
+    check(
+      JSON.parse(
+        readFileSync(join(import.meta.dir, "..", "schemas", "spec.json"), "utf8"),
+      ) as JsonSchemaShape,
+    );
+    // …while targets whose parsers accept permissions keep offering it
+    // (inline copy only — the on-disk mirror has never carried the
+    // cross-cutting blocks).
+    const cli = inline.oneOf.find((c) => c.properties?.target?.const === "cli");
+    expect(Object.keys(cli?.properties ?? {})).toContain("permissions");
+  });
+
+  test("eval shape's dataset is the {name, version, split} coordinate (inline + on-disk)", () => {
+    const check = (schema: JsonSchemaShape) => {
+      const ev = schema.oneOf.find((c) => c.properties?.target?.const === "eval");
+      const dataset = ev?.properties?.dataset;
+      expect(dataset?.required).toEqual(["name", "version"]);
+      expect(dataset?.properties?.split?.enum).toEqual(["train", "dev", "test"]);
+      // @crewhaus/spec's dataset sub-object is .strict() — mirror that so
+      // the IDE flags inline `cases:` keys the parser would reject.
+      expect(dataset?.additionalProperties).toBe(false);
+    };
+    check(getSpecJsonSchema() as unknown as JsonSchemaShape);
+    check(
+      JSON.parse(
+        readFileSync(join(import.meta.dir, "..", "schemas", "spec.json"), "utf8"),
+      ) as JsonSchemaShape,
+    );
+  });
 });
 
 type JsonSchemaShape = {
@@ -99,6 +140,11 @@ type JsonSchemaShape = {
       agent?: { required?: readonly string[] };
       steps?: { minItems?: number };
       channels?: { properties?: Record<string, unknown> };
+      dataset?: {
+        required?: readonly string[];
+        additionalProperties?: boolean;
+        properties?: { split?: { enum?: readonly string[] } };
+      };
       graders?: {
         items?: {
           required?: readonly string[];

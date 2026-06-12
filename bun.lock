@@ -17,6 +17,13 @@
         "@crewhaus/scaffold-templates": "workspace:*",
       },
     },
+    "dataset-builder": {
+      "name": "@crewhaus/dataset-builder",
+      "version": "0.1.4",
+      "devDependencies": {
+        "@crewhaus/spec": "^0.1.2",
+      },
+    },
     "grader-builder": {
       "name": "@crewhaus/grader-builder",
       "version": "0.1.4",
@@ -54,6 +61,7 @@
       "name": "@crewhaus/studio-server",
       "version": "0.1.4",
       "dependencies": {
+        "@crewhaus/dataset-builder": "workspace:*",
         "@crewhaus/errors": "^0.1.2",
         "@crewhaus/grader-builder": "workspace:*",
         "@crewhaus/graph-visualizer": "workspace:*",
@@ -128,6 +136,8 @@
     "@babel/helper-validator-identifier": ["@babel/helper-validator-identifier@7.29.7", "", {}, "sha512-qehxGkRj55h/ff8EMaJ+cYhyaKlHIxqYDn682wQD7RNp9UujOQsHog2uS0r2vzr4pW+sXf90NeeayjcNaX3fFg=="],
 
     "@crewhaus/crewhaus-playground": ["@crewhaus/crewhaus-playground@workspace:crewhaus-playground"],
+
+    "@crewhaus/dataset-builder": ["@crewhaus/dataset-builder@workspace:dataset-builder"],
 
     "@crewhaus/errors": ["@crewhaus/errors@0.1.2", "", {}, "sha512-YjGpc70kn9GzMEzNCSusXm0pD4DN4X5LksXZT4GRg2U8fsKeMX51BXlAldxpOwOuH/tZxxaRARYfViirEGtR5g=="],
 
