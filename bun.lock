@@ -11,7 +11,7 @@
     },
     "crewhaus-playground": {
       "name": "@crewhaus/crewhaus-playground",
-      "version": "0.1.4",
+      "version": "0.1.5",
       "dependencies": {
         "@crewhaus/errors": "^0.1.2",
         "@crewhaus/scaffold-templates": "workspace:*",
@@ -19,28 +19,28 @@
     },
     "dataset-builder": {
       "name": "@crewhaus/dataset-builder",
-      "version": "0.1.4",
+      "version": "0.1.5",
       "devDependencies": {
         "@crewhaus/spec": "^0.1.2",
       },
     },
     "grader-builder": {
       "name": "@crewhaus/grader-builder",
-      "version": "0.1.4",
+      "version": "0.1.5",
       "devDependencies": {
         "@crewhaus/spec": "^0.1.2",
       },
     },
     "graph-visualizer": {
       "name": "@crewhaus/graph-visualizer",
-      "version": "0.1.4",
+      "version": "0.1.5",
       "dependencies": {
         "@crewhaus/ir": "^0.1.2",
       },
     },
     "jetbrains-plugin": {
       "name": "@crewhaus/jetbrains-plugin",
-      "version": "0.1.4",
+      "version": "0.1.5",
       "dependencies": {
         "@crewhaus/errors": "^0.1.2",
         "@crewhaus/vscode-extension": "workspace:*",
@@ -48,18 +48,18 @@
     },
     "scaffold-templates": {
       "name": "@crewhaus/scaffold-templates",
-      "version": "0.1.4",
+      "version": "0.1.5",
     },
     "studio-plugin-sdk": {
       "name": "@crewhaus/studio-plugin-sdk",
-      "version": "0.1.4",
+      "version": "0.1.5",
       "dependencies": {
         "@crewhaus/errors": "^0.1.2",
       },
     },
     "studio-server": {
       "name": "@crewhaus/studio-server",
-      "version": "0.1.4",
+      "version": "0.1.5",
       "dependencies": {
         "@crewhaus/dataset-builder": "workspace:*",
         "@crewhaus/errors": "^0.1.2",
@@ -76,28 +76,28 @@
     },
     "studio-ui": {
       "name": "@crewhaus/studio-ui",
-      "version": "0.1.4",
+      "version": "0.1.5",
       "dependencies": {
         "@crewhaus/studio-server": "workspace:*",
       },
     },
     "trace-viewer": {
       "name": "@crewhaus/trace-viewer",
-      "version": "0.1.4",
+      "version": "0.1.5",
       "dependencies": {
         "@crewhaus/trace-event-bus": "^0.1.2",
       },
     },
     "vscode-extension": {
       "name": "@crewhaus/vscode-extension",
-      "version": "0.1.4",
+      "version": "0.1.5",
       "devDependencies": {
         "@vscode/vsce": "^3.0.0",
       },
     },
     "wizard": {
       "name": "@crewhaus/wizard",
-      "version": "0.1.4",
+      "version": "0.1.5",
       "dependencies": {
         "@crewhaus/errors": "^0.1.2",
         "@crewhaus/scaffold-templates": "workspace:*",
@@ -373,7 +373,7 @@
 
     "fill-range": ["fill-range@7.1.1", "", { "dependencies": { "to-regex-range": "^5.0.1" } }, "sha512-YsGpe3WHLK8ZYi4tWDg2Jy3ebRz2rXowDxnld4bkQB00cc/1Zw9AWnC0i9ztDJitivtQvaI9KaLyKrc+hBW0yg=="],
 
-    "form-data": ["form-data@4.0.5", "", { "dependencies": { "asynckit": "^0.4.0", "combined-stream": "^1.0.8", "es-set-tostringtag": "^2.1.0", "hasown": "^2.0.2", "mime-types": "^2.1.12" } }, "sha512-8RipRLol37bNs2bhoV67fiTEvdTrbMUYcFTiy3+wuuOnUog2QBHCZWXDRijWQfAkhBj2Uf5UnVaiWwA5vdd82w=="],
+    "form-data": ["form-data@4.0.6", "", { "dependencies": { "asynckit": "^0.4.0", "combined-stream": "^1.0.8", "es-set-tostringtag": "^2.1.0", "hasown": "^2.0.4", "mime-types": "^2.1.35" } }, "sha512-vKatAh4SlVfgbv+YtmhiRjhEMJsYpsG1Y2rMQtR+SVSbytsSD1YGzDIcrAJmdFec88u/+VoGmxnl+80gL1tRCQ=="],
 
     "fs-constants": ["fs-constants@1.0.0", "", {}, "sha512-y6OAwoSIf7FyjMIv94u+b5rdheZEjzR63GTyZJm5qh4Bi+2YgwLCcI/fPFZkL5PSixOt6ZNKm+w+Hfp/Bciwow=="],
 
