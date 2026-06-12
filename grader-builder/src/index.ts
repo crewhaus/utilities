@@ -7,24 +7,34 @@
  * logic over `startGraderBuilder → nextQuestion → answerGrader →
  * compileGrader` — the builder returns YAML, never renders UI.
  *
- * Question flow (branches on the chosen kind):
- *   kind → id → <kind-specific questions> → weight
+ * Compiled entries use the shape `@crewhaus/spec`'s eval target
+ * requires — strict `{ name, opts? }` items, where `name` doubles as
+ * the grader type the compiled eval bundle hands to
+ * `@crewhaus/eval-grader`'s `parseGradersConfig`. The six kinds and
+ * their opts mirror that parser:
  *
- *   exact-match       → expected, caseSensitive
- *   contains          → isRegex, pattern, caseSensitive
- *   numeric-tolerance → expectedNumber, tolerance, toleranceMode
- *   json-schema       → schemaJson
- *   llm-judge         → rubric, judgeModel, threshold
- *   custom-script     → scriptPath, timeoutMs
+ *   exact_match        → trim (default true), case_insensitive (default false);
+ *                        compares against the sample's expected_output
+ *   contains           → substring (required), case_insensitive
+ *   regex              → pattern (required, JS RegExp), flags
+ *   json_path          → path (required, $-rooted), expected (optional JSON)
+ *   tool_call_sequence → expected (required, tool names), mode (exact|subseq|set,
+ *                        default subseq)
+ *   llm_judge          → rubric { criteria: [{ name, description, anchors 1–5 }],
+ *                        passing_score? }, model, weight — scored 1–5 by
+ *                        `@crewhaus/eval-judge`, default passing score 3
+ *
+ * Question flow branches on the chosen kind:
+ *   kind → <kind-specific questions>
  *
  * Unlike `@crewhaus/wizard`, `answerGrader` validates every answer
  * and throws `GraderBuilderError` with a human-readable message —
  * the studio-server surfaces those as HTTP 400s, which is what
  * powers inline field errors in the Graders tab.
  *
- * No dependencies: the package stays testable in factory-less
- * checkouts, so `GraderBuilderError` mirrors `CrewhausError`'s shape
- * (a `code` field) without importing `@crewhaus/errors`.
+ * No dependencies: the package stays testable in minimal checkouts,
+ * so `GraderBuilderError` mirrors `CrewhausError`'s shape (a `code`
+ * field) without importing `@crewhaus/errors`.
  */
 
 export class GraderBuilderError extends Error {
@@ -36,77 +46,85 @@ export class GraderBuilderError extends Error {
 }
 
 export type GraderKind =
-  | "exact-match"
+  | "exact_match"
   | "contains"
-  | "numeric-tolerance"
-  | "json-schema"
-  | "llm-judge"
-  | "custom-script";
+  | "regex"
+  | "json_path"
+  | "tool_call_sequence"
+  | "llm_judge";
 
-/** Structured grader entry — one item of an eval spec's `graders:` array. */
+export type SequenceMode = "exact" | "subseq" | "set";
+
+/** The 1–5 anchor descriptions of one rubric criterion, worst to best. */
+export type RubricAnchors = {
+  readonly "1": string;
+  readonly "2": string;
+  readonly "3": string;
+  readonly "4": string;
+  readonly "5": string;
+};
+
+export type RubricConfig = {
+  readonly criteria: ReadonlyArray<{
+    readonly name: string;
+    readonly description: string;
+    readonly anchors: RubricAnchors;
+  }>;
+  readonly passing_score?: number;
+};
+
+/**
+ * Structured grader entry — one item of an eval spec's `graders:`
+ * array, exactly as `@crewhaus/spec` parses it: `name` is the grader
+ * type, `opts` its configuration. Default-valued opts are omitted.
+ */
 export type GraderConfig =
   | {
-      readonly id: string;
-      readonly kind: "exact-match";
-      readonly expected: string;
-      readonly caseSensitive: boolean;
-      readonly weight?: number;
+      readonly name: "exact_match";
+      readonly opts?: { readonly trim?: boolean; readonly case_insensitive?: boolean };
     }
   | {
-      readonly id: string;
-      readonly kind: "contains";
-      readonly pattern: string;
-      readonly regex: boolean;
-      readonly caseSensitive: boolean;
-      readonly weight?: number;
+      readonly name: "contains";
+      readonly opts: { readonly substring: string; readonly case_insensitive?: boolean };
     }
   | {
-      readonly id: string;
-      readonly kind: "numeric-tolerance";
-      readonly expected: number;
-      readonly tolerance: number;
-      readonly mode: "absolute" | "relative";
-      readonly weight?: number;
+      readonly name: "regex";
+      readonly opts: { readonly pattern: string; readonly flags?: string };
     }
   | {
-      readonly id: string;
-      readonly kind: "json-schema";
-      readonly schema: Record<string, unknown>;
-      readonly weight?: number;
+      readonly name: "json_path";
+      readonly opts: { readonly path: string; readonly expected?: unknown };
     }
   | {
-      readonly id: string;
-      readonly kind: "llm-judge";
-      readonly model: string;
-      readonly threshold: number;
-      readonly rubric: string;
-      readonly weight?: number;
+      readonly name: "tool_call_sequence";
+      readonly opts: { readonly expected: ReadonlyArray<string>; readonly mode?: SequenceMode };
     }
   | {
-      readonly id: string;
-      readonly kind: "custom-script";
-      readonly script: string;
-      readonly timeoutMs?: number;
-      readonly weight?: number;
+      readonly name: "llm_judge";
+      readonly opts: {
+        readonly rubric: RubricConfig;
+        readonly model: string;
+        readonly weight?: number;
+      };
     };
 
 export type GraderAnswer =
   | { question: "kind"; value: GraderKind }
-  | { question: "id"; value: string }
-  | { question: "expected"; value: string }
-  | { question: "caseSensitive"; value: boolean }
-  | { question: "isRegex"; value: boolean }
+  | { question: "trim"; value: boolean }
+  | { question: "caseInsensitive"; value: boolean }
+  | { question: "substring"; value: string }
   | { question: "pattern"; value: string }
-  | { question: "expectedNumber"; value: number }
-  | { question: "tolerance"; value: number }
-  | { question: "toleranceMode"; value: "absolute" | "relative" }
-  | { question: "schemaJson"; value: string }
-  | { question: "rubric"; value: string }
+  | { question: "flags"; value: string | undefined }
+  | { question: "path"; value: string }
+  | { question: "expectedJson"; value: string | undefined }
+  | { question: "toolCalls"; value: ReadonlyArray<string> }
+  | { question: "sequenceMode"; value: SequenceMode | undefined }
+  | { question: "criterionName"; value: string }
+  | { question: "criterionDescription"; value: string }
+  | { question: "anchors"; value: ReadonlyArray<string> | undefined }
+  | { question: "passingScore"; value: number | undefined }
   | { question: "judgeModel"; value: string }
-  | { question: "threshold"; value: number }
-  | { question: "scriptPath"; value: string }
-  | { question: "timeoutMs"; value: number | undefined }
-  | { question: "weight"; value: number | undefined };
+  | { question: "judgeWeight"; value: number | undefined };
 
 type QuestionId = GraderAnswer["question"];
 
@@ -120,43 +138,53 @@ export type GraderQuestion =
         readonly description: string;
       }>;
     }
-  | { readonly id: "id"; readonly prompt: string; readonly hint: string }
-  | { readonly id: "expected"; readonly prompt: string; readonly hint: string }
-  | { readonly id: "caseSensitive"; readonly prompt: string; readonly defaultValue: boolean }
-  | { readonly id: "isRegex"; readonly prompt: string; readonly defaultValue: boolean }
+  | { readonly id: "trim"; readonly prompt: string; readonly defaultValue: boolean }
+  | { readonly id: "caseInsensitive"; readonly prompt: string; readonly defaultValue: boolean }
+  | { readonly id: "substring"; readonly prompt: string; readonly hint: string }
   | { readonly id: "pattern"; readonly prompt: string; readonly hint: string }
-  | { readonly id: "expectedNumber"; readonly prompt: string; readonly hint: string }
-  | { readonly id: "tolerance"; readonly prompt: string; readonly hint: string }
   | {
-      readonly id: "toleranceMode";
+      readonly id: "flags";
       readonly prompt: string;
-      readonly choices: ReadonlyArray<{
-        readonly value: "absolute" | "relative";
-        readonly label: string;
-      }>;
+      readonly hint: string;
+      readonly optional: true;
     }
-  | { readonly id: "schemaJson"; readonly prompt: string; readonly hint: string }
-  | { readonly id: "rubric"; readonly prompt: string; readonly hint: string }
+  | { readonly id: "path"; readonly prompt: string; readonly hint: string }
+  | {
+      readonly id: "expectedJson";
+      readonly prompt: string;
+      readonly hint: string;
+      readonly optional: true;
+    }
+  | { readonly id: "toolCalls"; readonly prompt: string; readonly hint: string }
+  | {
+      readonly id: "sequenceMode";
+      readonly prompt: string;
+      readonly choices: ReadonlyArray<{ readonly value: SequenceMode; readonly label: string }>;
+      readonly optional: true;
+      readonly defaultValue: SequenceMode;
+    }
+  | { readonly id: "criterionName"; readonly prompt: string; readonly hint: string }
+  | { readonly id: "criterionDescription"; readonly prompt: string; readonly hint: string }
+  | {
+      readonly id: "anchors";
+      readonly prompt: string;
+      readonly hint: string;
+      readonly optional: true;
+    }
+  | {
+      readonly id: "passingScore";
+      readonly prompt: string;
+      readonly hint: string;
+      readonly optional: true;
+      readonly defaultValue: number;
+    }
   | {
       readonly id: "judgeModel";
       readonly prompt: string;
       readonly suggested: ReadonlyArray<string>;
     }
   | {
-      readonly id: "threshold";
-      readonly prompt: string;
-      readonly hint: string;
-      readonly defaultValue: number;
-    }
-  | { readonly id: "scriptPath"; readonly prompt: string; readonly hint: string }
-  | {
-      readonly id: "timeoutMs";
-      readonly prompt: string;
-      readonly hint: string;
-      readonly optional: true;
-    }
-  | {
-      readonly id: "weight";
+      readonly id: "judgeWeight";
       readonly prompt: string;
       readonly hint: string;
       readonly optional: true;
@@ -171,42 +199,46 @@ export type GraderBuilderState = {
 
 export type GraderResult = {
   readonly grader: GraderConfig;
-  /** One `- id: …` list item, base indent 0 — for appending under `graders:`. */
+  /** One `- name: …` list item, base indent 0 — for appending under `graders:`. */
   readonly yamlEntry: string;
-  /** `graders:\n  - id: …` — a full block for copy/paste into a spec. */
+  /** `graders:\n  - name: …` — a full block for copy/paste into a spec. */
   readonly yamlBlock: string;
 };
 
 const KINDS: ReadonlyArray<{ kind: GraderKind; title: string; description: string }> = [
   {
-    kind: "exact-match",
+    kind: "exact_match",
     title: "Exact match",
-    description: "Pass when the output equals an expected string exactly.",
+    description:
+      "Pass when the output equals the sample's expected_output (after optional trimming / case folding).",
   },
   {
     kind: "contains",
-    title: "Contains / regex",
-    description: "Pass when the output contains a substring or matches a regular expression.",
+    title: "Contains substring",
+    description: "Pass when the output contains a fixed substring.",
   },
   {
-    kind: "numeric-tolerance",
-    title: "Numeric tolerance",
-    description: "Pass when a numeric output is within a tolerance of the expected value.",
+    kind: "regex",
+    title: "Regex",
+    description: "Pass when the output matches a JavaScript regular expression.",
   },
   {
-    kind: "json-schema",
-    title: "JSON schema",
-    description: "Pass when the output parses as JSON and validates against a JSON Schema.",
+    kind: "json_path",
+    title: "JSON path",
+    description:
+      "Parse the output as JSON and require a JSONPath match (optionally equal to an expected value).",
   },
   {
-    kind: "llm-judge",
+    kind: "tool_call_sequence",
+    title: "Tool-call sequence",
+    description:
+      "Pass when the run's tool calls match an expected sequence — exactly, as a subsequence, or as a set.",
+  },
+  {
+    kind: "llm_judge",
     title: "LLM judge",
-    description: "A judge model scores the output against a rubric; pass above a threshold.",
-  },
-  {
-    kind: "custom-script",
-    title: "Custom script",
-    description: "Your own script grades each sample (JSON on stdin, verdict JSON on stdout).",
+    description:
+      "A judge model scores the output 1–5 against a rubric; pass at or above the passing score (default 3).",
   },
 ];
 
@@ -217,19 +249,32 @@ const SUGGESTED_JUDGE_MODELS: ReadonlyArray<string> = [
   "claude-opus-4-7",
 ];
 
-const DEFAULT_JUDGE_MODEL = "claude-sonnet-4-6";
-const DEFAULT_THRESHOLD = 0.7;
+const DEFAULT_SEQUENCE_MODE: SequenceMode = "subseq";
+const DEFAULT_PASSING_SCORE = 3;
 
-/** Same rule studio-server applies to spec names. */
-const ID_RE = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
+/** Generic 1–5 anchors used when the rubric author skips the anchors question. */
+const DEFAULT_ANCHORS: ReadonlyArray<string> = [
+  "Fails the criterion entirely.",
+  "Mostly fails; major gaps remain.",
+  "Mixed; meets the bar in places with clear gaps.",
+  "Meets the criterion with only minor gaps.",
+  "Fully meets the criterion.",
+];
 
 const KIND_BRANCH: Record<GraderKind, ReadonlyArray<QuestionId>> = {
-  "exact-match": ["expected", "caseSensitive"],
-  contains: ["isRegex", "pattern", "caseSensitive"],
-  "numeric-tolerance": ["expectedNumber", "tolerance", "toleranceMode"],
-  "json-schema": ["schemaJson"],
-  "llm-judge": ["rubric", "judgeModel", "threshold"],
-  "custom-script": ["scriptPath", "timeoutMs"],
+  exact_match: ["trim", "caseInsensitive"],
+  contains: ["substring", "caseInsensitive"],
+  regex: ["pattern", "flags"],
+  json_path: ["path", "expectedJson"],
+  tool_call_sequence: ["toolCalls", "sequenceMode"],
+  llm_judge: [
+    "criterionName",
+    "criterionDescription",
+    "anchors",
+    "passingScore",
+    "judgeModel",
+    "judgeWeight",
+  ],
 };
 
 /** Catalog of grader kinds — drives the studio-ui cards and the CLI menu. */
@@ -263,7 +308,7 @@ function answerOf<K extends QuestionId>(
 function sequence(answers: ReadonlyArray<GraderAnswer>): ReadonlyArray<QuestionId> {
   const kind = answerOf(answers, "kind");
   if (kind === undefined || KIND_BRANCH[kind] === undefined) return ["kind"];
-  return ["kind", "id", ...KIND_BRANCH[kind], "weight"];
+  return ["kind", ...KIND_BRANCH[kind]];
 }
 
 export function nextQuestion(state: GraderBuilderState): GraderQuestion | undefined {
@@ -280,74 +325,94 @@ export function nextQuestion(state: GraderBuilderState): GraderQuestion | undefi
           description: k.description,
         })),
       };
-    case "id":
+    case "trim":
       return {
-        id: "id",
-        prompt: "What should this grader be called? (kebab-case id, unique within the spec)",
-        hint: "e.g. exact-answer, helpfulness",
-      };
-    case "expected":
-      return {
-        id: "expected",
-        prompt: "What exact output should count as a pass?",
-        hint: "compared against the full output string",
-      };
-    case "caseSensitive":
-      return {
-        id: "caseSensitive",
-        prompt: "Should the comparison be case-sensitive?",
+        id: "trim",
+        prompt: "Trim surrounding whitespace before comparing?",
         defaultValue: true,
       };
-    case "isRegex":
+    case "caseInsensitive":
       return {
-        id: "isRegex",
-        prompt: "Is the pattern a regular expression? (no = literal substring)",
+        id: "caseInsensitive",
+        prompt: "Should the comparison ignore case?",
         defaultValue: false,
       };
+    case "substring":
+      return {
+        id: "substring",
+        prompt: "Which substring must the output contain?",
+        hint: "matched literally",
+      };
     case "pattern":
-      return answerOf(state.answers, "isRegex") === true
-        ? {
-            id: "pattern",
-            prompt: "Which regular expression must the output match?",
-            hint: "JavaScript RegExp syntax, e.g. refund(ed|s)?",
-          }
-        : {
-            id: "pattern",
-            prompt: "Which substring must the output contain?",
-            hint: "matched literally",
-          };
-    case "expectedNumber":
       return {
-        id: "expectedNumber",
-        prompt: "What is the expected numeric value?",
-        hint: "e.g. 19.99",
+        id: "pattern",
+        prompt: "Which regular expression must the output match?",
+        hint: "JavaScript RegExp syntax, e.g. refund(ed|s)?",
       };
-    case "tolerance":
+    case "flags":
       return {
-        id: "tolerance",
-        prompt: "How much may the output deviate?",
-        hint: "non-negative number, e.g. 0.05",
+        id: "flags",
+        prompt: "Regex flags? (optional)",
+        hint: 'e.g. "i" for case-insensitive, "m" for multiline; leave empty for none',
+        optional: true,
       };
-    case "toleranceMode":
+    case "path":
       return {
-        id: "toleranceMode",
-        prompt: "Is the tolerance absolute or relative?",
+        id: "path",
+        prompt: "Which JSONPath must match in the (JSON) output?",
+        hint: "$-rooted, e.g. $.status or $.items[*].id",
+      };
+    case "expectedJson":
+      return {
+        id: "expectedJson",
+        prompt: "Expected value at that path? (optional, as JSON)",
+        hint: 'e.g. "resolved" or 42 — leave empty to only require a match',
+        optional: true,
+      };
+    case "toolCalls":
+      return {
+        id: "toolCalls",
+        prompt: "Which tool names must the run call, in order?",
+        hint: "e.g. bash, read — names as the spec's tools: list declares them",
+      };
+    case "sequenceMode":
+      return {
+        id: "sequenceMode",
+        prompt: "How strictly should the sequence match?",
         choices: [
-          { value: "absolute", label: "absolute — |output − expected| ≤ tolerance" },
-          { value: "relative", label: "relative — |output − expected| ≤ tolerance × |expected|" },
+          { value: "exact", label: "exact — the full call list, in order, nothing else" },
+          { value: "subseq", label: "subseq — expected tools appear in order, others may interleave" },
+          { value: "set", label: "set — every expected tool was called, order ignored" },
         ],
+        optional: true,
+        defaultValue: DEFAULT_SEQUENCE_MODE,
       };
-    case "schemaJson":
+    case "criterionName":
       return {
-        id: "schemaJson",
-        prompt: "Paste the JSON Schema the output must validate against (as JSON):",
-        hint: 'e.g. {"type":"object","required":["status"]}',
+        id: "criterionName",
+        prompt: "Name of the rubric criterion the judge scores?",
+        hint: "e.g. helpfulness, accuracy",
       };
-    case "rubric":
+    case "criterionDescription":
       return {
-        id: "rubric",
-        prompt: "Describe the rubric the judge model should score against:",
-        hint: "plain language; the judge returns a 0..1 score",
+        id: "criterionDescription",
+        prompt: "Describe what the judge should look for:",
+        hint: "plain language; the judge scores 1–5 against this",
+      };
+    case "anchors":
+      return {
+        id: "anchors",
+        prompt: "Anchor descriptions for scores 1–5? (optional)",
+        hint: "five lines, worst (1) to best (5); leave empty for generic anchors",
+        optional: true,
+      };
+    case "passingScore":
+      return {
+        id: "passingScore",
+        prompt: "Minimum judge score (1–5) to count as a pass? (optional)",
+        hint: "defaults to 3",
+        optional: true,
+        defaultValue: DEFAULT_PASSING_SCORE,
       };
     case "judgeModel":
       return {
@@ -355,29 +420,9 @@ export function nextQuestion(state: GraderBuilderState): GraderQuestion | undefi
         prompt: "Which model should judge?",
         suggested: SUGGESTED_JUDGE_MODELS,
       };
-    case "threshold":
+    case "judgeWeight":
       return {
-        id: "threshold",
-        prompt: "Minimum judge score (0..1) to count as a pass?",
-        hint: "0.7 is a sensible default",
-        defaultValue: DEFAULT_THRESHOLD,
-      };
-    case "scriptPath":
-      return {
-        id: "scriptPath",
-        prompt: "Path to your grading script (relative to the spec file)?",
-        hint: "receives the sample as JSON on stdin; prints {\"passed\": bool, \"score\": number}",
-      };
-    case "timeoutMs":
-      return {
-        id: "timeoutMs",
-        prompt: "Script timeout in milliseconds? (optional, default 30000)",
-        hint: "positive integer; leave empty to use the default",
-        optional: true,
-      };
-    case "weight":
-      return {
-        id: "weight",
+        id: "judgeWeight",
         prompt: "Weight relative to other graders? (optional, default 1)",
         hint: "positive number; leave empty to skip",
         optional: true,
@@ -402,6 +447,28 @@ function requireFinite(value: unknown, what: string): number {
 }
 
 /**
+ * Reject JSON values the YAML emitter cannot represent faithfully:
+ * nested arrays (unsupported in v0) and non-finite numbers (JSON text
+ * like `1e999` overflows to Infinity, which YAML would re-read as a
+ * string).
+ */
+function assertEmittable(value: unknown, what: string): void {
+  if (typeof value === "number" && !Number.isFinite(value)) {
+    fail(`${what} must contain only finite numbers`);
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      if (Array.isArray(item)) fail(`${what}: nested arrays are not supported in grader opts (v0)`);
+      assertEmittable(item, what);
+    }
+    return;
+  }
+  if (value !== null && typeof value === "object") {
+    for (const v of Object.values(value as Record<string, unknown>)) assertEmittable(v, what);
+  }
+}
+
+/**
  * Validate one answer against the question the machine expects next.
  * Throws `GraderBuilderError` (message is safe to show verbatim in a
  * UI) on out-of-order answers or invalid values.
@@ -420,86 +487,115 @@ function validateAnswer(state: GraderBuilderState, answer: GraderAnswer): void {
   switch (answer.question) {
     case "kind":
       if (!KINDS.some((k) => k.kind === answer.value)) {
-        fail(`unknown grader kind "${String(answer.value)}" — pick one of: ${KINDS.map((k) => k.kind).join(", ")}`);
+        fail(
+          `unknown grader kind "${String(answer.value)}" — pick one of: ${KINDS.map((k) => k.kind).join(", ")}`,
+        );
       }
       return;
-    case "id": {
-      const v = requireString(answer.value, "id");
-      if (!ID_RE.test(v)) {
-        fail(`id "${v}" must be kebab-case: lowercase letters, digits and hyphens, e.g. my-grader`);
-      }
-      return;
-    }
-    case "expected":
-      requireString(answer.value, "expected");
-      return;
-    case "caseSensitive":
-    case "isRegex": {
+    case "trim":
+    case "caseInsensitive": {
       const q = answer.question;
       if (typeof answer.value !== "boolean") fail(`${q} must be true or false`);
       return;
     }
+    case "substring":
+      if (requireString(answer.value, "substring") === "") fail("substring must not be empty");
+      return;
     case "pattern": {
       const v = requireString(answer.value, "pattern");
       if (v === "") fail("pattern must not be empty");
-      if (answerOf(state.answers, "isRegex") === true) {
-        try {
-          new RegExp(v);
-        } catch (err) {
-          fail(`invalid regular expression: ${(err as Error).message}`);
-        }
+      try {
+        new RegExp(v);
+      } catch (err) {
+        fail(`invalid regular expression: ${(err as Error).message}`);
       }
       return;
     }
-    case "expectedNumber":
-      requireFinite(answer.value, "expected value");
-      return;
-    case "tolerance":
-      if (requireFinite(answer.value, "tolerance") < 0) fail("tolerance must be >= 0");
-      return;
-    case "toleranceMode":
-      if (answer.value !== "absolute" && answer.value !== "relative") {
-        fail('tolerance mode must be "absolute" or "relative"');
+    case "flags": {
+      if (answer.value === undefined) return;
+      const v = requireString(answer.value, "flags");
+      try {
+        new RegExp(answerOf(state.answers, "pattern") ?? "", v);
+      } catch (err) {
+        fail(`invalid regex flags "${v}": ${(err as Error).message}`);
       }
       return;
-    case "schemaJson": {
-      const v = requireString(answer.value, "schema");
+    }
+    case "path": {
+      const v = requireString(answer.value, "path");
+      if (v === "" || /[\n\r]/.test(v)) fail("path must be a non-empty single-line JSONPath");
+      if (!v.startsWith("$")) fail(`JSONPath must start with "$" (got "${v}")`);
+      return;
+    }
+    case "expectedJson": {
+      if (answer.value === undefined) return;
+      const v = requireString(answer.value, "expected value");
       let parsed: unknown;
       try {
         parsed = JSON.parse(v);
       } catch (err) {
-        fail(`schema is not valid JSON: ${(err as Error).message}`);
+        fail(`expected value is not valid JSON: ${(err as Error).message}`);
       }
-      if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
-        fail("schema must be a JSON object, e.g. {\"type\": \"object\"}");
+      // Mirror the emitter's limits up front so the error lands on this
+      // field instead of surfacing later from compile.
+      assertEmittable(parsed, "expected value");
+      return;
+    }
+    case "toolCalls": {
+      if (!Array.isArray(answer.value) || answer.value.length === 0) {
+        fail("expected at least one tool name");
+      }
+      for (const t of answer.value) {
+        if (typeof t !== "string" || t.trim() === "" || /[\n\r]/.test(t)) {
+          fail("tool names must be non-empty single-line strings");
+        }
       }
       return;
     }
-    case "rubric":
-      if (requireString(answer.value, "rubric").trim() === "") fail("rubric must not be empty");
+    case "sequenceMode":
+      if (
+        answer.value !== undefined &&
+        answer.value !== "exact" &&
+        answer.value !== "subseq" &&
+        answer.value !== "set"
+      ) {
+        fail('sequence mode must be "exact", "subseq", or "set"');
+      }
       return;
+    case "criterionName": {
+      const v = requireString(answer.value, "criterion name");
+      if (v.trim() === "" || /[\n\r]/.test(v)) {
+        fail("criterion name must be a non-empty single line");
+      }
+      return;
+    }
+    case "criterionDescription":
+      if (requireString(answer.value, "criterion description").trim() === "") {
+        fail("criterion description must not be empty");
+      }
+      return;
+    case "anchors": {
+      if (answer.value === undefined) return;
+      if (!Array.isArray(answer.value) || answer.value.length !== 5) {
+        fail("anchors must be exactly 5 descriptions, worst (1) to best (5)");
+      }
+      for (const a of answer.value) {
+        if (typeof a !== "string" || a.trim() === "") {
+          fail("each anchor description must be a non-empty string");
+        }
+      }
+      return;
+    }
+    case "passingScore": {
+      if (answer.value === undefined) return;
+      const v = requireFinite(answer.value, "passing score");
+      if (v < 1 || v > 5) fail("passing score must be between 1 and 5");
+      return;
+    }
     case "judgeModel":
       if (requireString(answer.value, "model").trim() === "") fail("model must not be empty");
       return;
-    case "threshold": {
-      const v = requireFinite(answer.value, "threshold");
-      if (v < 0 || v > 1) fail("threshold must be between 0 and 1");
-      return;
-    }
-    case "scriptPath": {
-      const v = requireString(answer.value, "script path");
-      // Existence is deliberately not checked — specs may be authored
-      // before the script.
-      if (v === "" || /[\0\n\r]/.test(v)) fail("script path must be a non-empty single-line path");
-      return;
-    }
-    case "timeoutMs":
-      if (answer.value === undefined) return;
-      if (!Number.isInteger(answer.value) || (answer.value as number) <= 0) {
-        fail("timeout must be a positive integer (milliseconds)");
-      }
-      return;
-    case "weight":
+    case "judgeWeight":
       if (answer.value === undefined) return;
       if (requireFinite(answer.value, "weight") <= 0) fail("weight must be > 0");
       return;
@@ -508,91 +604,104 @@ function validateAnswer(state: GraderBuilderState, answer: GraderAnswer): void {
 
 /**
  * Take a completed builder state and synthesize the structured grader
- * plus its YAML forms. Throws if `kind`, `id`, or the kind's required
- * field is missing; optional answers fall back to their defaults
- * (`caseSensitive: true`, literal substring, absolute tolerance,
- * `claude-sonnet-4-6` judge at threshold 0.7).
+ * plus its YAML forms. Throws if `kind` or a kind's required field is
+ * missing; optional answers fall back to their defaults, and
+ * default-valued opts are omitted from the YAML (`trim: true`,
+ * `case_insensitive: false`, `mode: subseq`, `passing_score: 3`).
  */
 export function compileGrader(state: GraderBuilderState): GraderResult {
   const a = state.answers;
   const kind = answerOf(a, "kind");
   if (kind === undefined) fail("compileGrader: kind not answered yet");
-  const id = answerOf(a, "id");
-  if (id === undefined) fail("compileGrader: id not answered yet");
-  const weight = answerOf(a, "weight");
 
   const grader = ((): GraderConfig => {
     switch (kind) {
-      case "exact-match": {
-        const expected = answerOf(a, "expected");
-        if (expected === undefined) fail("compileGrader: expected not answered yet");
-        return {
-          id,
-          kind,
-          expected,
-          caseSensitive: answerOf(a, "caseSensitive") ?? true,
-          ...(weight !== undefined ? { weight } : {}),
+      case "exact_match": {
+        const trim = answerOf(a, "trim") ?? true;
+        const ci = answerOf(a, "caseInsensitive") ?? false;
+        const opts = {
+          ...(trim === false ? { trim: false } : {}),
+          ...(ci === true ? { case_insensitive: true } : {}),
         };
+        return Object.keys(opts).length > 0 ? { name: kind, opts } : { name: kind };
       }
       case "contains": {
+        const substring = answerOf(a, "substring");
+        if (substring === undefined) fail("compileGrader: substring not answered yet");
+        return {
+          name: kind,
+          opts: {
+            substring,
+            ...(answerOf(a, "caseInsensitive") === true ? { case_insensitive: true } : {}),
+          },
+        };
+      }
+      case "regex": {
         const pattern = answerOf(a, "pattern");
         if (pattern === undefined) fail("compileGrader: pattern not answered yet");
+        const flags = answerOf(a, "flags");
         return {
-          id,
-          kind,
-          pattern,
-          regex: answerOf(a, "isRegex") ?? false,
-          caseSensitive: answerOf(a, "caseSensitive") ?? true,
-          ...(weight !== undefined ? { weight } : {}),
+          name: kind,
+          opts: {
+            pattern,
+            ...(flags !== undefined && flags !== "" ? { flags } : {}),
+          },
         };
       }
-      case "numeric-tolerance": {
-        const expected = answerOf(a, "expectedNumber");
-        const tolerance = answerOf(a, "tolerance");
-        if (expected === undefined || tolerance === undefined) {
-          fail("compileGrader: expected value + tolerance not answered yet");
+      case "json_path": {
+        const path = answerOf(a, "path");
+        if (path === undefined) fail("compileGrader: path not answered yet");
+        const expectedJson = answerOf(a, "expectedJson");
+        return {
+          name: kind,
+          opts: {
+            path,
+            ...(expectedJson !== undefined
+              ? { expected: JSON.parse(expectedJson) as unknown }
+              : {}),
+          },
+        };
+      }
+      case "tool_call_sequence": {
+        const expected = answerOf(a, "toolCalls");
+        if (expected === undefined) fail("compileGrader: tool names not answered yet");
+        const mode = answerOf(a, "sequenceMode");
+        return {
+          name: kind,
+          opts: {
+            expected,
+            ...(mode !== undefined && mode !== DEFAULT_SEQUENCE_MODE ? { mode } : {}),
+          },
+        };
+      }
+      case "llm_judge": {
+        const criterionName = answerOf(a, "criterionName");
+        const description = answerOf(a, "criterionDescription");
+        if (criterionName === undefined || description === undefined) {
+          fail("compileGrader: rubric criterion not answered yet");
         }
-        return {
-          id,
-          kind,
-          expected,
-          tolerance,
-          mode: answerOf(a, "toleranceMode") ?? "absolute",
-          ...(weight !== undefined ? { weight } : {}),
+        const anchorList = answerOf(a, "anchors") ?? DEFAULT_ANCHORS;
+        const anchors: RubricAnchors = {
+          "1": anchorList[0] as string,
+          "2": anchorList[1] as string,
+          "3": anchorList[2] as string,
+          "4": anchorList[3] as string,
+          "5": anchorList[4] as string,
         };
-      }
-      case "json-schema": {
-        const schemaJson = answerOf(a, "schemaJson");
-        if (schemaJson === undefined) fail("compileGrader: schema not answered yet");
+        const passingScore = answerOf(a, "passingScore");
+        const weight = answerOf(a, "judgeWeight");
         return {
-          id,
-          kind,
-          schema: JSON.parse(schemaJson) as Record<string, unknown>,
-          ...(weight !== undefined ? { weight } : {}),
-        };
-      }
-      case "llm-judge": {
-        const rubric = answerOf(a, "rubric");
-        if (rubric === undefined) fail("compileGrader: rubric not answered yet");
-        return {
-          id,
-          kind,
-          model: answerOf(a, "judgeModel") ?? DEFAULT_JUDGE_MODEL,
-          threshold: answerOf(a, "threshold") ?? DEFAULT_THRESHOLD,
-          rubric,
-          ...(weight !== undefined ? { weight } : {}),
-        };
-      }
-      case "custom-script": {
-        const script = answerOf(a, "scriptPath");
-        if (script === undefined) fail("compileGrader: script path not answered yet");
-        const timeoutMs = answerOf(a, "timeoutMs");
-        return {
-          id,
-          kind,
-          script,
-          ...(timeoutMs !== undefined ? { timeoutMs } : {}),
-          ...(weight !== undefined ? { weight } : {}),
+          name: kind,
+          opts: {
+            rubric: {
+              criteria: [{ name: criterionName, description, anchors }],
+              ...(passingScore !== undefined && passingScore !== DEFAULT_PASSING_SCORE
+                ? { passing_score: passingScore }
+                : {}),
+            },
+            model: answerOf(a, "judgeModel") ?? (SUGGESTED_JUDGE_MODELS[0] as string),
+            ...(weight !== undefined ? { weight } : {}),
+          },
         };
       }
     }
@@ -606,12 +715,12 @@ export function compileGrader(state: GraderBuilderState): GraderResult {
 // ---------------------------------------------------------------------------
 // YAML emission — tiny hand-rolled emitter so the package stays
 // dependency-free. Handles the scalar/object/array shapes graders use;
-// defaults are omitted (caseSensitive: true, regex: false, mode:
-// absolute, no weight/timeout).
+// rubric anchor keys are emitted double-quoted so they stay string keys.
 // ---------------------------------------------------------------------------
 
-// First char excludes digits/`-` so number-like strings stay quoted.
-const PLAIN_SCALAR_RE = /^[A-Za-z./_][A-Za-z0-9 _./-]*$/;
+// First char excludes digits/`-`/`.` so number-like strings (including
+// YAML 1.2 floats like `.5`, `.inf`, `.nan`) stay quoted.
+const PLAIN_SCALAR_RE = /^[A-Za-z/_$][A-Za-z0-9 _./$()[\]*-]*$/;
 const YAML_AMBIGUOUS = new Set(["true", "false", "yes", "no", "on", "off", "null", "~"]);
 
 function yamlScalar(v: string | number | boolean): string {
@@ -630,12 +739,22 @@ function indent(block: string, by: number): string {
     .join("\n");
 }
 
+/**
+ * Multi-line strings emit as `|-` literal block scalars only when that
+ * round-trips exactly: no CR (YAML normalizes line breaks), no trailing
+ * newline (`|-` chomps it), and a first line that isn't empty or
+ * space-led (which would break block-indent auto-detection). Everything
+ * else falls through to a JSON-quoted scalar, which is always exact.
+ */
+function safeBlockScalar(value: string): boolean {
+  return !value.includes("\r") && !value.endsWith("\n") && /^\S/.test(value);
+}
+
 /** `key: value` lines for one key, handling block scalars + nested objects. */
 function yamlKeyLines(key: string, value: unknown, depth: number): string[] {
   const pad = " ".repeat(depth * 2);
-  if (typeof value === "string" && value.includes("\n")) {
-    const body = value.replace(/\n+$/, "");
-    return [`${pad}${key}: |`, ...body.split("\n").map((l) => `${pad}  ${l}`)];
+  if (typeof value === "string" && value.includes("\n") && safeBlockScalar(value)) {
+    return [`${pad}${key}: |-`, ...value.split("\n").map((l) => `${pad}  ${l}`)];
   }
   if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
     return [`${pad}${key}: ${yamlScalar(value)}`];
@@ -650,10 +769,12 @@ function yamlKeyLines(key: string, value: unknown, depth: number): string[] {
           out.push(`${pad}  - {}`);
           continue;
         }
-        const lines = entries.flatMap(([k, v]) => yamlKeyLines(k, v, 0));
+        const lines = entries.flatMap(([k, v]) => yamlKeyLines(yamlKey(k), v, 0));
         out.push(`${pad}  - ${lines[0]}`, ...lines.slice(1).map((l) => `${pad}    ${l}`));
       } else if (Array.isArray(item)) {
-        fail("nested arrays are not supported in grader schemas (v0)");
+        fail("nested arrays are not supported in grader opts (v0)");
+      } else if (item === null) {
+        out.push(`${pad}  - null`);
       } else {
         out.push(`${pad}  - ${yamlScalar(item as string | number | boolean)}`);
       }
@@ -663,48 +784,25 @@ function yamlKeyLines(key: string, value: unknown, depth: number): string[] {
   if (value !== null && typeof value === "object") {
     const entries = Object.entries(value as Record<string, unknown>);
     if (entries.length === 0) return [`${pad}${key}: {}`];
-    return [`${pad}${key}:`, ...entries.flatMap(([k, v]) => yamlKeyLines(k, v, depth + 1))];
+    return [
+      `${pad}${key}:`,
+      ...entries.flatMap(([k, v]) => yamlKeyLines(yamlKey(k), v, depth + 1)),
+    ];
   }
   return [`${pad}${key}: null`];
 }
 
-/** One `- id: …` list item at base indent 0, deterministic key order. */
-function emitGraderEntry(grader: GraderConfig): string {
-  const pairs: Array<[string, unknown]> = [
-    ["id", grader.id],
-    ["kind", grader.kind],
-  ];
-  switch (grader.kind) {
-    case "exact-match":
-      pairs.push(["expected", grader.expected]);
-      if (!grader.caseSensitive) pairs.push(["caseSensitive", false]);
-      break;
-    case "contains":
-      pairs.push(["pattern", grader.pattern]);
-      if (grader.regex) pairs.push(["regex", true]);
-      if (!grader.caseSensitive) pairs.push(["caseSensitive", false]);
-      break;
-    case "numeric-tolerance":
-      pairs.push(["expected", grader.expected], ["tolerance", grader.tolerance]);
-      if (grader.mode !== "absolute") pairs.push(["mode", grader.mode]);
-      break;
-    case "json-schema":
-      pairs.push(["schema", grader.schema]);
-      break;
-    case "llm-judge":
-      pairs.push(
-        ["model", grader.model],
-        ["threshold", grader.threshold],
-        ["rubric", grader.rubric],
-      );
-      break;
-    case "custom-script":
-      pairs.push(["script", grader.script]);
-      if (grader.timeoutMs !== undefined) pairs.push(["timeoutMs", grader.timeoutMs]);
-      break;
-  }
-  if (grader.weight !== undefined) pairs.push(["weight", grader.weight]);
+/** Quote map keys that YAML would otherwise read as numbers (rubric anchors). */
+function yamlKey(key: string): string {
+  return /^[A-Za-z_][\w-]*$/.test(key) ? key : JSON.stringify(key);
+}
 
+/** One `- name: …` list item at base indent 0, deterministic key order. */
+function emitGraderEntry(grader: GraderConfig): string {
+  const pairs: Array<[string, unknown]> = [["name", grader.name]];
+  if (grader.opts !== undefined && Object.keys(grader.opts).length > 0) {
+    pairs.push(["opts", grader.opts]);
+  }
   const lines = pairs.flatMap(([k, v]) => yamlKeyLines(k, v, 0));
   return [`- ${lines[0]}`, ...lines.slice(1).map((l) => `  ${l}`)].join("\n");
 }
@@ -741,11 +839,13 @@ export function appendGraderToSpecYaml(specYaml: string, yamlEntry: string): str
     fail("the spec's graders: key uses inline flow style — convert it to a block list first");
   }
 
-  // Block ends at the next top-level key (or EOF); insert before any
-  // trailing blank lines so block separation stays intact.
+  // Block ends at the next top-level key, a document marker (`---`,
+  // `...`), or EOF; insert before any trailing blank lines so block
+  // separation stays intact.
   let end = lines.length;
   for (let i = gradersIdx + 1; i < lines.length; i++) {
-    if (TOP_LEVEL_KEY_RE.test(lines[i] as string)) {
+    const line = lines[i] as string;
+    if (TOP_LEVEL_KEY_RE.test(line) || /^(---|\.\.\.)\s*$/.test(line)) {
       end = i;
       break;
     }

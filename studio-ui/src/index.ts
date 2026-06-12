@@ -226,33 +226,36 @@ function ask(q) {
 // (/api/grader-wizard/start → step×N → compile) and any 400 from /step is
 // rendered inline next to the offending field.
 
-// Mirrors the grader-builder question order per kind (kind, id, <branch>, weight).
+// Mirrors the grader-builder question order per kind (kind, then the
+// kind's branch — no global questions after the branch).
 const GRADER_BRANCH = {
-  'exact-match': ['expected', 'caseSensitive'],
-  'contains': ['isRegex', 'pattern', 'caseSensitive'],
-  'numeric-tolerance': ['expectedNumber', 'tolerance', 'toleranceMode'],
-  'json-schema': ['schemaJson'],
-  'llm-judge': ['rubric', 'judgeModel', 'threshold'],
-  'custom-script': ['scriptPath', 'timeoutMs'],
+  'exact_match': ['trim', 'caseInsensitive'],
+  'contains': ['substring', 'caseInsensitive'],
+  'regex': ['pattern', 'flags'],
+  'json_path': ['path', 'expectedJson'],
+  'tool_call_sequence': ['toolCalls', 'sequenceMode'],
+  'llm_judge': ['criterionName', 'criterionDescription', 'anchors', 'passingScore', 'judgeModel', 'judgeWeight'],
 };
 
-// Form field metadata per question id.
+// Form field metadata per question id. Labels/hints mirror the
+// grader-builder nextQuestion() prompts; 'lines' renders a textarea
+// whose value is split into an array (one item per non-empty line).
 const GRADER_FIELDS = {
-  id: { label: 'Grader id', type: 'text', hint: 'kebab-case, unique within the spec (e.g. helpfulness)', placeholder: 'my-grader' },
-  expected: { label: 'Expected output', type: 'textarea', hint: 'pass when the output equals this exactly' },
-  caseSensitive: { label: 'Case-sensitive comparison', type: 'checkbox', checked: true },
-  isRegex: { label: 'Pattern is a regular expression', type: 'checkbox', checked: false },
-  pattern: { label: 'Pattern', type: 'text', hint: 'literal substring (tick the regex box for JS RegExp syntax)' },
-  expectedNumber: { label: 'Expected value', type: 'number', hint: 'e.g. 19.99' },
-  tolerance: { label: 'Tolerance', type: 'number', hint: 'non-negative, e.g. 0.05' },
-  toleranceMode: { label: 'Tolerance mode', type: 'select', options: ['absolute', 'relative'] },
-  schemaJson: { label: 'JSON Schema (as JSON)', type: 'textarea', hint: 'e.g. {"type":"object","required":["status"]}' },
-  rubric: { label: 'Rubric', type: 'textarea', hint: 'plain language; the judge model scores the output 0..1 against this' },
+  trim: { label: 'Trim surrounding whitespace before comparing', type: 'checkbox', checked: true },
+  caseInsensitive: { label: 'Ignore case when comparing', type: 'checkbox', checked: false },
+  substring: { label: 'Substring the output must contain', type: 'text', hint: 'matched literally' },
+  pattern: { label: 'Regular expression the output must match', type: 'text', hint: 'JavaScript RegExp syntax, e.g. refund(ed|s)?' },
+  flags: { label: 'Regex flags (optional)', type: 'text', hint: 'e.g. "i" for case-insensitive, "m" for multiline; leave empty for none', optional: true },
+  path: { label: 'JSONPath that must match in the (JSON) output', type: 'text', hint: '$-rooted, e.g. $.status or $.items[*].id' },
+  expectedJson: { label: 'Expected value at that path (optional, as JSON)', type: 'textarea', hint: 'e.g. "resolved" or 42 — leave empty to only require a match', optional: true },
+  toolCalls: { label: 'Tool names the run must call, in order (one per line)', type: 'lines', hint: 'e.g. bash, read — names as the spec\\'s tools: list declares them' },
+  sequenceMode: { label: 'How strictly should the sequence match?', type: 'select', options: ['subseq', 'exact', 'set'], hint: 'subseq (default): expected tools appear in order, others may interleave; exact: the full call list; set: order ignored' },
+  criterionName: { label: 'Rubric criterion name', type: 'text', hint: 'e.g. helpfulness, accuracy' },
+  criterionDescription: { label: 'What should the judge look for?', type: 'textarea', hint: 'plain language; the judge scores 1–5 against this' },
+  anchors: { label: 'Anchor descriptions for scores 1–5 (optional)', type: 'lines', hint: 'five lines, worst (1) to best (5); leave empty for generic anchors', optional: true },
+  passingScore: { label: 'Minimum judge score to pass (optional)', type: 'number', min: 1, max: 5, step: 0.5, hint: '1–5; defaults to 3', optional: true },
   judgeModel: { label: 'Judge model', type: 'model', suggested: ['claude-sonnet-4-6', 'claude-haiku-4-5-20251001', 'claude-opus-4-7'] },
-  threshold: { label: 'Pass threshold (0..1)', type: 'number', min: 0, max: 1, step: 0.05, value: '0.7' },
-  scriptPath: { label: 'Script path', type: 'text', hint: 'relative to the spec file; gets the sample as JSON on stdin, prints {"passed": bool, "score": number}' },
-  timeoutMs: { label: 'Timeout (ms, optional)', type: 'number', hint: 'leave empty for the default (30000)', optional: true },
-  weight: { label: 'Weight (optional)', type: 'number', hint: 'relative to other graders; leave empty for 1', optional: true },
+  judgeWeight: { label: 'Weight relative to other graders (optional)', type: 'number', hint: 'positive number; leave empty to skip (default 1)', optional: true },
 };
 
 let graderState = null; // last successfully compiled state (sent to the append endpoint)
@@ -330,7 +333,7 @@ function graderField(qid) {
     }
     wrap.appendChild(label);
     wrap.appendChild(input);
-  } else if (meta.type === 'textarea') {
+  } else if (meta.type === 'textarea' || meta.type === 'lines') {
     label.textContent = meta.label;
     input = document.createElement('textarea');
     wrap.appendChild(label);
@@ -364,17 +367,24 @@ function graderField(qid) {
 function graderAnswerFrom(input, qid) {
   const meta = GRADER_FIELDS[qid];
   if (meta.type === 'checkbox') return { question: qid, value: input.checked };
+  if (meta.type === 'select') return { question: qid, value: input.value };
+  if (meta.type === 'lines') {
+    const items = input.value.split('\\n').map((s) => s.trim()).filter((s) => s !== '');
+    if (items.length === 0 && meta.optional) return { question: qid, value: undefined };
+    return { question: qid, value: items };
+  }
   const raw = input.value.trim();
   if (meta.type === 'number') {
     if (raw === '') return meta.optional ? { question: qid, value: undefined } : null;
     return { question: qid, value: Number(raw) };
   }
+  if (raw === '' && meta.optional) return { question: qid, value: undefined };
   return { question: qid, value: raw };
 }
 
 function renderGraderForm(kind, formWrap, previewWrap) {
   graderState = null;
-  const order = ['id'].concat(GRADER_BRANCH[kind], ['weight']);
+  const order = GRADER_BRANCH[kind];
   formWrap.innerHTML = '';
   previewWrap.innerHTML = '';
   const form = document.createElement('div');
@@ -510,7 +520,7 @@ async function renderGraderAttach(attach) {
     });
     const body = await res.json();
     if (res.ok) {
-      status.textContent = 'Added ' + body.graderId + ' to ' + body.name + '. ';
+      status.textContent = 'Added ' + body.graderName + ' to ' + body.name + '. ';
       const open = document.createElement('button');
       open.textContent = 'Open spec';
       open.addEventListener('click', () => {

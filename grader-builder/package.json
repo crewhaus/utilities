@@ -12,6 +12,9 @@
     "start": "bun src/scripts/start.ts",
     "test": "bun test src"
   },
+  "devDependencies": {
+    "@crewhaus/spec": "^0.1.2"
+  },
   "license": "Apache-2.0",
   "author": {
     "name": "Max Meier",

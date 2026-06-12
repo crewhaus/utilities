@@ -13,12 +13,16 @@
     "test": "bun test src"
   },
   "dependencies": {
+    "@crewhaus/errors": "^0.1.2",
     "@crewhaus/grader-builder": "workspace:*",
     "@crewhaus/graph-visualizer": "workspace:*",
-    "@crewhaus/studio-plugin-sdk": "workspace:*",
+    "@crewhaus/ir": "^0.1.2",
     "@crewhaus/scaffold-templates": "workspace:*",
+    "@crewhaus/spec": "^0.1.2",
+    "@crewhaus/studio-plugin-sdk": "workspace:*",
     "@crewhaus/trace-viewer": "workspace:*",
-    "@crewhaus/wizard": "workspace:*"
+    "@crewhaus/wizard": "workspace:*",
+    "yaml": "^2.6.0"
   },
   "license": "Apache-2.0",
   "author": {

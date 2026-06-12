@@ -2,7 +2,7 @@
 
 Vanilla-TS UI for [studio-server](../studio-server/) — no build step, no framework. Exports HTML + inlined JS as strings. Four tabs: Specs (list + edit), Wizard (5-question flow), Graders (form-based eval-grader builder), Plugins (discovery).
 
-The Graders tab walks you through creating one grader for an eval spec: pick a kind (exact-match, contains/regex, numeric-tolerance, json-schema, llm-judge, custom-script), fill in the kind-specific fields, and a debounced live YAML preview replays your values through `/api/grader-wizard/{start,step,compile}` — server-side validation errors render inline next to the offending field. Finish by appending to an eval spec in the workspace (`POST /api/specs/:name/graders`) or copying the YAML.
+The Graders tab walks you through creating one grader for an eval spec: pick a kind (exact_match, contains, regex, json_path, tool_call_sequence, llm_judge), fill in the kind-specific fields, and a debounced live YAML preview replays your values through `/api/grader-wizard/{start,step,compile}` — server-side validation errors render inline next to the offending field. Finish by appending the compiled `{ name, opts }` entry to an eval spec in the workspace (`POST /api/specs/:name/graders`) or copying the YAML.
 
 ## Try it
 

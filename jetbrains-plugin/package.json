@@ -13,6 +13,7 @@
     "build:plugin": "bun src/scripts/build.ts"
   },
   "dependencies": {
+    "@crewhaus/errors": "^0.1.2",
     "@crewhaus/vscode-extension": "workspace:*"
   },
   "license": "Apache-2.0",

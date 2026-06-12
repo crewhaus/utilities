@@ -13,7 +13,7 @@ Every package has a runnable `bun run start` (or near equivalent) that demonstra
 | [wizard](./wizard/)                       | 5-question state machine for guided spec creation  | `bun run start` (interactive CLI) |
 | [grader-builder](./grader-builder/)       | guided eval-grader creation (6 grader kinds)       | `bun run start` (interactive CLI) |
 | [scaffold-templates](./scaffold-templates/) | built-in spec YAML per target shape              | `bun run start [id]` (catalog / show one) |
-| [plugin-sdk](./plugin-sdk/)               | typed surface for third-party studio plugins       | `bun run start` (define + validate demo) |
+| [studio-plugin-sdk](./studio-plugin-sdk/) | typed surface for third-party studio plugins       | `bun run start` (define + validate demo) |
 | [trace-viewer](./trace-viewer/)           | Gantt-shaped timeline from `TraceEvent[]`          | `bun run start` (ASCII Gantt of a fixture) |
 | [graph-visualizer](./graph-visualizer/)   | layered DAG layout for `IrGraphV0`                 | `bun run start` (writes `graph.svg`) |
 | [vscode-extension](./vscode-extension/)   | spec authoring + Run Spec for VS Code              | open in VS Code, press F5 (or `bun run build:vsce`) |
@@ -29,9 +29,9 @@ Each package has its own `README.md`, `package.json`, `src/`, and `tsconfig.json
 - **[studio-server](./studio-server/)** — Bun.serve daemon exposing `/api/specs`, `/api/wizard/*`, `/api/runs/*` (SSE), `/api/graph-layout/*`, `/api/plugins`. v0 ships in dev mode (no auth) and a canned run-event stream — inject `runDispatcher` to wire a real runtime.
 - **[studio-ui](./studio-ui/)** — `renderStudioHtml({ title })` returns a self-contained SPA (vanilla TS, no build step) that calls the studio-server API. Also exports `renderMcpConnectorsPanel()` and `renderMultiSpecDashboard()` as HTML fragments.
 - **[wizard](./wizard/)** — 5-question state machine: target → name → model → tools → permission mode. Headless; the studio-ui and `crewhaus init --wizard` both drive it. Returns `{ yaml, envExample, target, name }`.
-- **[grader-builder](./grader-builder/)** — guided builder for eval-spec graders: kind → id → kind-specific fields → weight, branching across six kinds (exact-match, contains, numeric-tolerance, json-schema, llm-judge, custom-script). Headless + validating; the studio-ui Graders tab and the CLI both drive it. Returns `{ grader, yamlEntry, yamlBlock }` plus a comment-preserving `appendGraderToSpecYaml`.
+- **[grader-builder](./grader-builder/)** — guided builder for eval-spec graders, emitting the strict `{ name, opts? }` entries `@crewhaus/spec`'s eval target requires: kind first, then kind-specific question branches across the six grader types (exact_match, contains, regex, json_path, tool_call_sequence, llm_judge). Headless + validating; the studio-ui Graders tab and the CLI both drive it. Returns `{ grader, yamlEntry, yamlBlock }` plus a comment-preserving `appendGraderToSpecYaml`.
 - **[scaffold-templates](./scaffold-templates/)** — pure data module. Ten `TemplateId` values, one per target shape. The wizard and studio-server both read this list as the seed for new specs.
-- **[plugin-sdk](./plugin-sdk/)** — typed surface for third-party plugins. Plugins `export default definePlugin({ name, hooks, panes, permissions })`; the studio-server lazy-loads them from `~/.crewhaus/plugins/<name>/index.ts`.
+- **[studio-plugin-sdk](./studio-plugin-sdk/)** — typed surface for third-party plugins. Plugins `export default definePlugin({ name, hooks, panes, permissions })`; the studio-server lazy-loads them from `~/.crewhaus/plugins/<name>/index.ts`.
 
 ### Visualization
 
@@ -77,16 +77,16 @@ cd studio-server && bun test          # just one package
 
 ## Workspace setup
 
-`utilities/` is a bun workspaces tree — each top-level directory resolves as a `workspace:*` dependency. The `paths` block in [tsconfig.base.json](./tsconfig.base.json) maps the four factory-only imports (`@crewhaus/errors`, `@crewhaus/ir`, `@crewhaus/spec`, `@crewhaus/trace-event-bus`) to the sibling `../factory/packages/<name>/` checkout; every other `@crewhaus/*` import resolves to a workspace sibling here.
+`utilities/` is a bun workspaces tree — each top-level directory resolves as a `workspace:*` dependency. The four factory imports (`@crewhaus/errors`, `@crewhaus/ir`, `@crewhaus/spec`, `@crewhaus/trace-event-bus`) resolve from the published npm packages (`^0.1.2`), declared as regular dependencies by each package that uses them — no sibling `../factory` checkout needed. Every other `@crewhaus/*` import resolves to a workspace sibling here.
 
 Inter-package edges:
 
-- `studio-server` → `wizard`, `grader-builder`, `scaffold-templates`, `plugin-sdk`, `trace-viewer`, `graph-visualizer`
+- `studio-server` → `wizard`, `grader-builder`, `scaffold-templates`, `studio-plugin-sdk`, `trace-viewer`, `graph-visualizer`
 - `studio-ui` → `studio-server` (the `bun run start` script bundles both)
 - `wizard` → `scaffold-templates`
 - `crewhaus-playground` → `scaffold-templates`
 - `jetbrains-plugin` → `vscode-extension` (shares the spec-schema generator)
-- `trace-viewer`, `graph-visualizer`, `scaffold-templates`, `plugin-sdk`, `grader-builder` — leaf packages, no sibling deps
+- `trace-viewer`, `graph-visualizer`, `scaffold-templates`, `studio-plugin-sdk`, `grader-builder` — no workspace deps (trace-viewer and graph-visualizer depend on the published `@crewhaus/trace-event-bus` / `@crewhaus/ir` npm packages)
 
 ## Related docs
 

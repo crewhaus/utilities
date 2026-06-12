@@ -42,14 +42,17 @@ describe("studio-ui (T1)", () => {
     expect(js).toContain("/api/grader-wizard/compile");
     expect(js).toContain("/graders'");
     expect(js).toContain("navigator.clipboard.writeText");
-    // One form branch per grader kind.
+    // The append response carries graderName (the grader type), not an id.
+    expect(js).toContain("graderName");
+    expect(js).not.toContain("graderId");
+    // One form branch per grader kind — the six real @crewhaus/spec types.
     for (const kind of [
-      "exact-match",
+      "exact_match",
       "contains",
-      "numeric-tolerance",
-      "json-schema",
-      "llm-judge",
-      "custom-script",
+      "regex",
+      "json_path",
+      "tool_call_sequence",
+      "llm_judge",
     ]) {
       expect(js).toContain(`'${kind}'`);
     }

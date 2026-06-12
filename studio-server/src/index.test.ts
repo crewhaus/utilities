@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { StudioServerError, startStudioServer } from "./index.js";
@@ -462,8 +462,16 @@ describe("studio-server v1 — Section 31 endpoints", () => {
 });
 
 describe("studio-server — grader builder endpoints", () => {
+  // Strictly valid under @crewhaus/spec: dataset is {name, version, split},
+  // graders has min(1) — so it can be created via POST /api/specs.
   const EVAL_YAML =
-    "name: e1\ntarget: eval\nagent:\n  model: claude-sonnet-4-6\n  instructions: answer briefly\ndataset:\n  path: ./data.jsonl\ngraders: []\n";
+    'name: e1\ntarget: eval\nagent:\n  model: claude-sonnet-4-6\n  instructions: answer briefly\ndataset:\n  name: support-tickets\n  version: "1"\n  split: dev\ngraders:\n  - name: contains\n    opts:\n      substring: hello\n';
+
+  // A DRAFT eval spec: `graders: []` fails the strict parse (min 1), so it
+  // can only exist by writing the file directly — appending its first
+  // grader is exactly what makes it valid.
+  const DRAFT_YAML =
+    'name: draft\ntarget: eval\nagent:\n  model: claude-sonnet-4-6\n  instructions: answer briefly\ndataset:\n  name: support-tickets\n  version: "1"\n  split: dev\ngraders: []\n';
 
   // Drive the full state machine over HTTP and return the final state.
   async function buildState(port: number, answers: ReadonlyArray<unknown>): Promise<unknown> {
@@ -484,15 +492,22 @@ describe("studio-server — grader builder endpoints", () => {
   }
 
   const LLM_JUDGE_ANSWERS: ReadonlyArray<unknown> = [
-    { question: "kind", value: "llm-judge" },
-    { question: "id", value: "helpfulness" },
-    { question: "rubric", value: "Be polite and cite a source." },
+    { question: "kind", value: "llm_judge" },
+    { question: "criterionName", value: "helpfulness" },
+    { question: "criterionDescription", value: "Be polite and cite a source." },
+    { question: "anchors", value: undefined },
+    { question: "passingScore", value: undefined },
     { question: "judgeModel", value: "claude-sonnet-4-6" },
-    { question: "threshold", value: 0.7 },
-    { question: "weight", value: undefined },
+    { question: "judgeWeight", value: undefined },
   ];
 
-  test("POST /api/grader-wizard/start → step → compile produces grader YAML", async () => {
+  const containsAnswers = (substring: string): ReadonlyArray<unknown> => [
+    { question: "kind", value: "contains" },
+    { question: "substring", value: substring },
+    { question: "caseInsensitive", value: false },
+  ];
+
+  test("POST /api/grader-wizard/start → step → compile produces an llm_judge entry", async () => {
     const root = newRoot();
     const server = await startStudioServer({
       workspaceDir: root,
@@ -504,11 +519,15 @@ describe("studio-server — grader builder endpoints", () => {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ state }),
-      }).then((r) => r.json() as Promise<{ grader: { id: string }; yamlBlock: string }>);
-      expect(compiled.grader.id).toBe("helpfulness");
+      }).then((r) => r.json() as Promise<{ grader: { name: string }; yamlBlock: string }>);
+      expect(compiled.grader.name).toBe("llm_judge");
       expect(compiled.yamlBlock).toContain("graders:");
-      expect(compiled.yamlBlock).toContain("kind: llm-judge");
-      expect(compiled.yamlBlock).toContain("threshold: 0.7");
+      expect(compiled.yamlBlock).toContain("name: llm_judge");
+      expect(compiled.yamlBlock).toContain("model: claude-sonnet-4-6");
+      // Skipped anchors fall back to generic ones; the numeric rubric keys
+      // are emitted quoted so YAML keeps them as string keys.
+      expect(compiled.yamlBlock).toContain('"1":');
+      expect(compiled.yamlBlock).toContain('"5":');
     } finally {
       await server.stop();
       rmSync(root, { recursive: true, force: true });
@@ -555,36 +574,69 @@ describe("studio-server — grader builder endpoints", () => {
         body: JSON.stringify({ name: "e1", yaml: EVAL_YAML }),
       });
       expect(create.status).toBe(201);
-      const state = await buildState(server.port, LLM_JUDGE_ANSWERS);
+      const state = await buildState(server.port, containsAnswers("hello there"));
       const append = await fetch(`http://localhost:${server.port}/api/specs/e1/graders`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ state }),
       });
       expect(append.status).toBe(200);
-      const body = (await append.json()) as { graderId: string; yaml: string };
-      expect(body.graderId).toBe("helpfulness");
-      expect(body.yaml).toContain("kind: llm-judge");
-      // Round-trip: the stored spec now contains the grader and still parses.
-      const get = await fetch(`http://localhost:${server.port}/api/specs/e1`).then(
-        (r) => r.json() as Promise<{ yaml: string; parsed: { graders: Array<{ id: string }> } }>,
-      );
-      expect(get.yaml).toContain("- id: helpfulness");
-      expect(get.parsed.graders.map((g) => g.id)).toEqual(["helpfulness"]);
+      const body = (await append.json()) as { graderName: string; yaml: string };
+      expect(body.graderName).toBe("contains");
+      expect(body.yaml).toContain("name: contains");
+      expect(body.yaml).toContain("hello there");
+      // Round-trip: GET strictly re-parses the stored spec, so a 200 proves
+      // the appended YAML is still valid under @crewhaus/spec.
+      const get = await fetch(`http://localhost:${server.port}/api/specs/e1`);
+      expect(get.status).toBe(200);
+      const got = (await get.json()) as {
+        yaml: string;
+        parsed: { graders: Array<{ name: string }> };
+      };
+      expect(got.parsed.graders).toHaveLength(2);
+      expect(got.parsed.graders.map((g) => g.name)).toEqual(["contains", "contains"]);
     } finally {
       await server.stop();
       rmSync(root, { recursive: true, force: true });
     }
   });
 
-  test("POST /api/specs/:name/graders → 404 unknown spec, 400 non-eval, 409 duplicate id, 400 incomplete state", async () => {
+  test("POST /api/specs/:name/graders bootstraps a draft spec with graders: []", async () => {
     const root = newRoot();
     const server = await startStudioServer({
       workspaceDir: root,
       pluginRoot: join(root, "plugins"),
     });
     try {
-      const state = await buildState(server.port, LLM_JUDGE_ANSWERS);
+      // The draft fails strict parse (graders min 1), so write it directly.
+      writeFileSync(join(root, "draft.yaml"), DRAFT_YAML);
+      const state = await buildState(server.port, containsAnswers("first grader"));
+      const append = await fetch(`http://localhost:${server.port}/api/specs/draft/graders`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ state }),
+      });
+      expect(append.status).toBe(200);
+      // The persisted file now strictly parses — GET 200 proves it.
+      const get = await fetch(`http://localhost:${server.port}/api/specs/draft`);
+      expect(get.status).toBe(200);
+      const got = (await get.json()) as { parsed: { graders: Array<{ name: string }> } };
+      expect(got.parsed.graders).toHaveLength(1);
+      expect(got.parsed.graders[0]?.name).toBe("contains");
+    } finally {
+      await server.stop();
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test("POST /api/specs/:name/graders → 404 unknown spec, 400 non-eval, 409 identical grader, 400 bad state, 422 broken draft", async () => {
+    const root = newRoot();
+    const server = await startStudioServer({
+      workspaceDir: root,
+      pluginRoot: join(root, "plugins"),
+    });
+    try {
+      const state = await buildState(server.port, containsAnswers("dup-check"));
       const post = (name: string, body: unknown) =>
         fetch(`http://localhost:${server.port}/api/specs/${name}/graders`, {
           method: "POST",
@@ -611,14 +663,35 @@ describe("studio-server — grader builder endpoints", () => {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ name: "e2", yaml: EVAL_YAML.replace("name: e1", "name: e2") }),
       });
+      // Same state twice: the first append lands, the second is a
+      // deep-equal duplicate of the entry it just wrote.
       expect((await post("e2", { state })).status).toBe(200);
-      expect((await post("e2", { state })).status).toBe(409);
+      const dup = await post("e2", { state });
+      expect(dup.status).toBe(409);
+      const dupBody = (await dup.json()) as { error: string; graderName: string };
+      expect(dupBody.error).toBe("identical grader already in spec");
+      expect(dupBody.graderName).toBe("contains");
+      // A DIFFERENT grader of the same name is not a duplicate.
+      const different = await buildState(server.port, containsAnswers("but different"));
+      expect((await post("e2", { state: different })).status).toBe(200);
 
+      // Incomplete state: contains needs a substring before it compiles.
       const incompleteState = await buildState(server.port, [
-        { question: "kind", value: "exact-match" },
+        { question: "kind", value: "contains" },
       ]);
       expect((await post("e2", { state: incompleteState })).status).toBe(400);
       expect((await post("e2", {})).status).toBe(400);
+
+      // Broken draft: loose pre-check passes (eval + graders: []) but the
+      // missing dataset block fails the strict parse after the append —
+      // 422 and nothing persisted.
+      const brokenYaml =
+        "name: broken\ntarget: eval\nagent:\n  model: claude-sonnet-4-6\n  instructions: answer briefly\ngraders: []\n";
+      writeFileSync(join(root, "broken.yaml"), brokenYaml);
+      const broken = await post("broken", { state });
+      expect(broken.status).toBe(422);
+      expect(((await broken.json()) as { error: string }).error).toBe("append failed");
+      expect(readFileSync(join(root, "broken.yaml"), "utf8")).toBe(brokenYaml);
     } finally {
       await server.stop();
       rmSync(root, { recursive: true, force: true });
@@ -649,5 +722,52 @@ describe("StudioServerError", () => {
       message: "write failed",
       cause: { name: "Error", message: "root cause" },
     });
+  });
+});
+
+describe("studio-server — grader state is replayed, never trusted", () => {
+  const EVAL_YAML =
+    'name: e1\ntarget: eval\nagent:\n  model: claude-sonnet-4-6\n  instructions: answer briefly\ndataset:\n  name: support-tickets\n  version: "1"\n  split: dev\ngraders:\n  - name: contains\n    opts:\n      substring: hello\n';
+
+  // A fabricated state that never went through answerGrader: substring is
+  // a number, caseInsensitive a string. Before the replay fix this was
+  // compiled and persisted as `substring: 123`, which the eval runtime's
+  // parseGradersConfig rejects.
+  const FORGED_STATE = {
+    step: 3,
+    answers: [
+      { question: "kind", value: "contains" },
+      { question: "substring", value: 123 },
+      { question: "caseInsensitive", value: "yep" },
+    ],
+  };
+
+  test("compile and append reject a hand-crafted state with 400", async () => {
+    const root = newRoot();
+    const server = await startStudioServer({
+      workspaceDir: root,
+      pluginRoot: join(root, "plugins"),
+    });
+    try {
+      await fetch(`http://localhost:${server.port}/api/specs`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name: "e1", yaml: EVAL_YAML }),
+      });
+      for (const path of ["/api/grader-wizard/compile", "/api/specs/e1/graders"]) {
+        const r = await fetch(`http://localhost:${server.port}${path}`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ state: FORGED_STATE }),
+        });
+        expect(r.status).toBe(400);
+        expect(((await r.json()) as { error: string }).error).toContain("substring");
+      }
+      // The spec on disk is untouched.
+      expect(readFileSync(join(root, "e1.yaml"), "utf8")).toBe(EVAL_YAML);
+    } finally {
+      await server.stop();
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 });

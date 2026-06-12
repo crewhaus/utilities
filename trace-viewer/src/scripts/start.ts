@@ -28,7 +28,7 @@ const t0 = new Date("2026-05-08T00:00:00.000Z");
 const at = (ms: number): string => new Date(t0.getTime() + ms).toISOString();
 
 const events: TraceEvent[] = [
-  { ...envelope("turn_1", undefined, at(0)), kind: "turn_start", turnNumber: 1 },
+  { ...envelope("turn_1", undefined, at(0)), kind: "turn_start", turn: 1, messageCount: 3 },
 
   { ...envelope("model_1", "turn_1", at(50)), kind: "model_request", model: "claude-sonnet-4-6", messageCount: 3, toolCount: 2, streaming: false },
   { ...envelope("model_1", "turn_1", at(1200)), kind: "model_response", model: "claude-sonnet-4-6", stopReason: "tool_use", usage: { input: 100, output: 50 }, durationMs: 1150 },
@@ -42,7 +42,7 @@ const events: TraceEvent[] = [
   { ...envelope("model_2", "turn_1", at(1950)), kind: "model_request", model: "claude-sonnet-4-6", messageCount: 5, toolCount: 2, streaming: false },
   { ...envelope("model_2", "turn_1", at(2400)), kind: "model_response", model: "claude-sonnet-4-6", stopReason: "end_turn", usage: { input: 200, output: 80 }, durationMs: 450 },
 
-  { ...envelope("turn_1", undefined, at(2450)), kind: "turn_end", turnNumber: 1 },
+  { ...envelope("turn_1", undefined, at(2450)), kind: "turn_end", turn: 1, stopReason: "end_turn", durationMs: 2450 },
 ];
 
 const timeline = buildTimeline(events);

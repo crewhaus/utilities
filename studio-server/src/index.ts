@@ -68,6 +68,7 @@ import {
   nextQuestion,
   startWizard,
 } from "@crewhaus/wizard";
+import { parse as parseYaml } from "yaml";
 
 export class StudioServerError extends CrewhausError {
   override readonly name = "StudioServerError";
@@ -157,6 +158,22 @@ function jsonResponse(body: unknown, status = 200): Response {
 
 function textResponse(text: string, status = 200, contentType = "text/plain"): Response {
   return new Response(text, { status, headers: { "content-type": contentType } });
+}
+
+/**
+ * Key-order-independent JSON form, for comparing a compiled grader
+ * against the entries already in a spec's `graders:` array.
+ */
+function canonicalJson(v: unknown): string {
+  if (Array.isArray(v)) return `[${v.map(canonicalJson).join(",")}]`;
+  if (v !== null && typeof v === "object") {
+    return `{${Object.entries(v as Record<string, unknown>)
+      .filter(([, val]) => val !== undefined)
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      .map(([k, val]) => `${JSON.stringify(k)}:${canonicalJson(val)}`)
+      .join(",")}}`;
+  }
+  return JSON.stringify(v) ?? "null";
 }
 
 export async function startStudioServer(
@@ -358,6 +375,16 @@ export async function startStudioServer(
     // Same start/step/compile envelope as the wizard; validation errors
     // from answerGrader surface as 400 + message so the Graders tab can
     // render them inline next to the offending field.
+    //
+    // Clients send `state` back verbatim, but it is never trusted: every
+    // endpoint replays the answers through the state machine, so a
+    // hand-crafted state (wrong types, skipped validation) is a 400, not
+    // a persisted spec.
+    function replayGraderState(state: GraderBuilderState): GraderBuilderState {
+      let replayed = startGraderBuilder();
+      for (const answer of state.answers ?? []) replayed = answerGrader(replayed, answer);
+      return replayed;
+    }
     if (p === "/api/grader-wizard/start" && m === "POST") {
       const state = startGraderBuilder();
       return jsonResponse({ state, nextQuestion: nextGraderQuestion(state) ?? null });
@@ -366,7 +393,7 @@ export async function startStudioServer(
       const body = (await req.json()) as { state?: GraderBuilderState; answer?: GraderAnswer };
       if (!body.state || !body.answer) return jsonResponse({ error: "state+answer required" }, 400);
       try {
-        const next = answerGrader(body.state, body.answer);
+        const next = answerGrader(replayGraderState(body.state), body.answer);
         return jsonResponse({ state: next, nextQuestion: nextGraderQuestion(next) ?? null });
       } catch (err) {
         return jsonResponse({ error: (err as Error).message }, 400);
@@ -376,7 +403,7 @@ export async function startStudioServer(
       const body = (await req.json()) as { state?: GraderBuilderState };
       if (!body.state) return jsonResponse({ error: "state required" }, 400);
       try {
-        return jsonResponse(compileGrader(body.state));
+        return jsonResponse(compileGrader(replayGraderState(body.state)));
       } catch (err) {
         return jsonResponse({ error: (err as Error).message }, 400);
       }
@@ -386,30 +413,44 @@ export async function startStudioServer(
       const name = mgr[1] as string;
       if (!safeName(name)) return jsonResponse({ error: "unsafe name" }, 400);
       const fp = specPath(name);
-      if (!existsSync(fp)) return jsonResponse({ error: "spec not found" }, 404);
-      const yaml = readFileSync(fp, "utf8");
-      let parsed: { target?: string; graders?: ReadonlyArray<{ id?: unknown }> };
-      try {
-        parsed = parseSpec(yaml) as typeof parsed;
-      } catch (err) {
-        return jsonResponse({ error: "spec invalid", detail: (err as Error).message }, 422);
-      }
-      if (parsed.target !== "eval") {
-        return jsonResponse({ error: "spec is not an eval target", target: parsed.target }, 400);
-      }
+      // Drain + compile the request BEFORE touching the file: reading the
+      // spec while the client still streams the body would hold a stale
+      // copy for as long as the client likes, silently reverting any
+      // concurrent PUT when written back.
       const body = (await req.json()) as { state?: GraderBuilderState };
       if (!body.state) return jsonResponse({ error: "state required" }, 400);
-      // Compile server-side from the validated state — the state machine
+      // Compile server-side from the replayed state — the state machine
       // stays the single source of truth; clients never send raw YAML.
       let result: ReturnType<typeof compileGrader>;
       try {
-        result = compileGrader(body.state);
+        result = compileGrader(replayGraderState(body.state));
       } catch (err) {
         return jsonResponse({ error: (err as Error).message }, 400);
       }
+      if (!existsSync(fp)) return jsonResponse({ error: "spec not found" }, 404);
+      const yaml = readFileSync(fp, "utf8");
+      // Pre-check with a LOOSE parse: a draft eval spec without graders is
+      // not yet valid under @crewhaus/spec (graders has min 1), but appending
+      // its first grader is exactly what makes it valid. The strict parse
+      // below remains the persistence gate.
+      let parsed: { target?: unknown; graders?: unknown };
+      try {
+        parsed = parseYaml(yaml) as typeof parsed;
+      } catch (err) {
+        return jsonResponse({ error: "spec invalid", detail: (err as Error).message }, 422);
+      }
+      if (parsed === null || typeof parsed !== "object" || parsed.target !== "eval") {
+        return jsonResponse(
+          { error: "spec is not an eval target", target: parsed?.target ?? null },
+          400,
+        );
+      }
       const existing = Array.isArray(parsed.graders) ? parsed.graders : [];
-      if (existing.some((g) => g !== null && typeof g === "object" && g.id === result.grader.id)) {
-        return jsonResponse({ error: "grader id already exists", id: result.grader.id }, 409);
+      if (existing.some((g) => canonicalJson(g) === canonicalJson(result.grader))) {
+        return jsonResponse(
+          { error: "identical grader already in spec", graderName: result.grader.name },
+          409,
+        );
       }
       let next: string;
       try {
@@ -420,7 +461,7 @@ export async function startStudioServer(
         return jsonResponse({ error: "append failed", detail: (err as Error).message }, status);
       }
       writeFileSync(fp, next, { mode: 0o600 });
-      return jsonResponse({ name, graderId: result.grader.id, yaml: next });
+      return jsonResponse({ name, graderName: result.grader.name, yaml: next });
     }
 
     // ---- runs -----------------------------------------------------------
@@ -644,7 +685,7 @@ export async function startStudioServer(
   });
 
   return {
-    port: server.port,
+    port: server.port ?? port,
     async stop() {
       await server.stop(true);
     },

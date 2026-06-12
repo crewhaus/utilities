@@ -66,21 +66,21 @@ describe("spec-schema (T1)", () => {
     expect([...adapters].sort()).toEqual(["discord", "imessage", "slack", "telegram", "whatsapp"]);
   });
 
-  test("eval shape's grader items enumerate the 6 grader-builder kinds (inline + on-disk)", () => {
-    const GRADER_KINDS = [
-      "exact-match",
+  test("eval shape's grader items enumerate the 6 real grader types (inline + on-disk)", () => {
+    const GRADER_NAMES = [
+      "exact_match",
       "contains",
-      "numeric-tolerance",
-      "json-schema",
-      "llm-judge",
-      "custom-script",
+      "regex",
+      "json_path",
+      "tool_call_sequence",
+      "llm_judge",
     ];
     const check = (schema: JsonSchemaShape) => {
       const ev = schema.oneOf.find((c) => c.properties?.target?.const === "eval");
       const items = ev?.properties?.graders?.items;
-      expect(items?.required).toEqual(["id", "kind"]);
-      expect(items?.properties?.kind?.enum).toEqual(GRADER_KINDS);
-      expect(items?.properties?.threshold).toEqual({ type: "number", minimum: 0, maximum: 1 });
+      expect(items?.required).toEqual(["name"]);
+      expect(items?.properties?.name?.enum).toEqual(GRADER_NAMES);
+      expect(items?.properties?.opts?.properties?.mode?.enum).toEqual(["exact", "subseq", "set"]);
     };
     check(getSpecJsonSchema() as unknown as JsonSchemaShape);
     check(
@@ -102,7 +102,10 @@ type JsonSchemaShape = {
       graders?: {
         items?: {
           required?: readonly string[];
-          properties?: { kind?: { enum?: readonly string[] }; threshold?: unknown };
+          properties?: {
+            name?: { enum?: readonly string[] };
+            opts?: { properties?: { mode?: { enum?: readonly string[] } } };
+          };
         };
       };
     };

@@ -6,8 +6,9 @@
  *
  * Reads one line at a time from stdin. Works both with a real TTY
  * and when stdin is piped (the demo verifier in CI uses `printf |
- * bun run start`). Rubrics are entered on one line in v0 — literal
- * `\n` sequences become real newlines.
+ * bun run start`). Multi-line values are entered on one line in v0 —
+ * literal `\n` sequences become real newlines; the five rubric
+ * anchors are entered `|`-separated.
  */
 import {
   type GraderAnswer,
@@ -67,48 +68,59 @@ while (q !== undefined) {
     if (q.id === "kind") {
       process.stdout.write(`\n${q.prompt}\n`);
       for (const c of q.choices) {
-        process.stdout.write(`  - ${c.value.padEnd(18)} ${c.description}\n`);
+        process.stdout.write(`  - ${c.value.padEnd(20)} ${c.description}\n`);
       }
       const raw = await readLine("kind> ");
       // answerGrader rejects unknown kinds with the full menu.
       answer = { question: "kind", value: raw } as GraderAnswer;
-    } else if (q.id === "caseSensitive" || q.id === "isRegex") {
+    } else if (q.id === "trim" || q.id === "caseInsensitive") {
       const def = q.defaultValue ? "Y/n" : "y/N";
       const raw = await readLine(`\n${q.prompt} [${def}]\n${q.id}> `);
       answer = { question: q.id, value: parseBool(raw, q.defaultValue) };
-    } else if (q.id === "toleranceMode") {
-      process.stdout.write(`\n${q.prompt}\n`);
-      for (const c of q.choices) process.stdout.write(`  - ${c.value.padEnd(10)} ${c.label}\n`);
-      const raw = (await readLine("mode> ")) || "absolute";
-      answer = { question: "toleranceMode", value: raw as "absolute" | "relative" };
+    } else if (q.id === "sequenceMode") {
+      process.stdout.write(`\n${q.prompt} (empty = ${q.defaultValue})\n`);
+      for (const c of q.choices) process.stdout.write(`  - ${c.label}\n`);
+      const raw = await readLine("mode> ");
+      answer = {
+        question: "sequenceMode",
+        value: raw === "" ? undefined : (raw as "exact" | "subseq" | "set"),
+      };
     } else if (q.id === "judgeModel") {
       process.stdout.write(`\n${q.prompt}\n`);
       for (const s of q.suggested) process.stdout.write(`  - ${s}\n`);
       const raw = (await readLine("model> ")) || (q.suggested[0] as string);
       answer = { question: "judgeModel", value: raw };
-    } else if (q.id === "threshold") {
-      const raw = await readLine(`\n${q.prompt}\n  ${q.hint}\nthreshold> `);
+    } else if (q.id === "toolCalls") {
+      const raw = await readLine(`\n${q.prompt}\n  ${q.hint} (comma-separated)\ntools> `);
       answer = {
-        question: "threshold",
-        value: raw === "" ? q.defaultValue : parseNumber(raw, "threshold"),
+        question: "toolCalls",
+        value: raw
+          .split(",")
+          .map((t) => t.trim())
+          .filter((t) => t !== ""),
       };
-    } else if (q.id === "expectedNumber" || q.id === "tolerance") {
-      const raw = await readLine(`\n${q.prompt}\n  ${q.hint}\n${q.id}> `);
-      answer = { question: q.id, value: parseNumber(raw, q.id) };
-    } else if (q.id === "timeoutMs" || q.id === "weight") {
+    } else if (q.id === "anchors") {
+      const raw = await readLine(
+        `\n${q.prompt}\n  ${q.hint} (enter five descriptions separated by "|", or leave empty)\nanchors> `,
+      );
+      answer = {
+        question: "anchors",
+        value: raw === "" ? undefined : raw.split("|").map((a) => a.trim()),
+      };
+    } else if (q.id === "passingScore" || q.id === "judgeWeight") {
       const raw = await readLine(`\n${q.prompt}\n  ${q.hint}\n${q.id}> `);
       answer = {
         question: q.id,
         value: raw === "" ? undefined : parseNumber(raw, q.id),
       };
-    } else if (q.id === "rubric") {
-      const raw = await readLine(`\n${q.prompt}\n  ${q.hint}\nrubric> `);
-      answer = { question: "rubric", value: raw.replaceAll("\\n", "\n") };
-    } else if (q.id === "id") {
-      const raw = (await readLine(`\n${q.prompt}\n  ${q.hint}\nid> `)) || "grader-1";
-      answer = { question: "id", value: raw };
+    } else if (q.id === "flags" || q.id === "expectedJson") {
+      const raw = await readLine(`\n${q.prompt}\n  ${q.hint}\n${q.id}> `);
+      answer = { question: q.id, value: raw === "" ? undefined : raw };
+    } else if (q.id === "criterionDescription") {
+      const raw = await readLine(`\n${q.prompt}\n  ${q.hint}\ndescription> `);
+      answer = { question: "criterionDescription", value: raw.replaceAll("\\n", "\n") };
     } else {
-      // expected / pattern / schemaJson / scriptPath — free text.
+      // substring / pattern / path / criterionName — free text.
       const raw = await readLine(`\n${q.prompt}\n  ${q.hint}\n${q.id}> `);
       answer = { question: q.id, value: raw };
     }

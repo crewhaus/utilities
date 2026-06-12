@@ -157,13 +157,14 @@ export function answerWizard(state: WizardState, answer: WizardAnswer): WizardSt
   };
 }
 
+type AnswerValueOf = { [A in WizardAnswer as A["question"]]: A["value"] };
+
 function answerOf<K extends WizardAnswer["question"]>(
   state: WizardState,
   question: K,
-): Extract<WizardAnswer, { question: K }>["value"] | undefined {
+): AnswerValueOf[K] | undefined {
   const a = state.answers.find((x) => x.question === question);
-  if (a === undefined) return undefined;
-  return a.value as Extract<WizardAnswer, { question: K }>["value"];
+  return a?.value as AnswerValueOf[K] | undefined;
 }
 
 /**
