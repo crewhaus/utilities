@@ -1,0 +1,25 @@
+CrewHaus Utilities
+Copyright 2026 Max Meier
+
+This product includes software developed by Max Meier
+(operating as StudioMax — https://studiomax.io) and contributors.
+
+The CrewHaus name and logo are trademarks of Max Meier. See
+the sibling factory repository's TRADEMARK.md for the use-of-marks policy:
+https://github.com/crewhaus/factory/blob/main/TRADEMARK.md
+
+================================================================
+This product also includes the following third-party software,
+licensed under their respective licenses. See each package's
+package.json and the upstream license for full terms.
+
+Common dependencies (non-exhaustive — see package.json files):
+
+- Bun runtime (MIT)
+- TypeScript (Apache-2.0)
+- Astro (MIT) — studio-server / studio-ui
+- Monaco editor (MIT) — crewhaus-playground
+- VS Code Extension API (MIT) — vscode-extension
+- IntelliJ Platform SDK (Apache-2.0) — jetbrains-plugin
+- Various other npm packages — see each package.json
+================================================================
