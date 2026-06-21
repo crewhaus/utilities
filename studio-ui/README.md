@@ -54,4 +54,4 @@ const html = renderStudioHtml({ title: "My Studio" });
 
 - Source: [src/index.ts](./src/index.ts), [src/scripts/start.ts](./src/scripts/start.ts)
 
-> Inside this workspace, resolves as `workspace:*`. Not yet on npm.
+> Inside this workspace, resolves as `workspace:*`. Published to npm as `@crewhaus/studio-ui@0.1.5`.

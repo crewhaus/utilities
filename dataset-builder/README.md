@@ -129,4 +129,4 @@ const starter = buildEvalSpecStarterYaml(result, {
 
 - [crewhaus/factory](https://github.com/crewhaus/factory) — the compiler whose §29 dataset-registry resolves the emitted coordinates at run time
 
-> Inside this workspace, resolves as `workspace:*`. Not yet on npm.
+> Inside this workspace, resolves as `workspace:*`. Published to npm as `@crewhaus/dataset-builder@0.1.5`.
