@@ -54,4 +54,4 @@ src/
 - Sibling: [vscode-extension](../vscode-extension/) — shares the spec-schema generator
 - Source: [src/main/resources/META-INF/plugin.xml](./src/main/resources/META-INF/plugin.xml), [src/scripts/build.ts](./src/scripts/build.ts)
 
-> Inside this workspace, resolves as `workspace:*`. Not yet on the marketplace.
+> Inside this workspace, resolves as `workspace:*`. Published to npm as `@crewhaus/jetbrains-plugin@0.1.5`; not yet on the JetBrains Marketplace.

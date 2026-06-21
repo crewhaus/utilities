@@ -5,7 +5,7 @@ Typed surface for third-party Studio plugins. A plugin is a single TS module exp
 ## Try it
 
 ```bash
-cd plugin-sdk
+cd studio-plugin-sdk
 bun install
 bun run start
 # → defines a sample plugin, validates it, runs permission probes:
@@ -95,4 +95,4 @@ Patterns are minimatch-style globs (`**` recursive, `*` single-segment). Empty o
 
 - Source: [src/index.ts](./src/index.ts), [src/scripts/start.ts](./src/scripts/start.ts)
 
-> Inside this workspace, resolves as `workspace:*`. Not yet on npm.
+> Inside this workspace, resolves as `workspace:*`. Published to npm as `@crewhaus/studio-plugin-sdk@0.1.5`.

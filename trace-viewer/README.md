@@ -88,4 +88,4 @@ For point events, `t1 === t0`. Unpaired start events get `t1 === t0` until the m
 
 - Source: [src/index.ts](./src/index.ts), [src/scripts/start.ts](./src/scripts/start.ts)
 
-> Inside this workspace, resolves as `workspace:*`. Not yet on npm.
+> Inside this workspace, resolves as `workspace:*`. Published to npm as `@crewhaus/trace-viewer@0.1.5`.

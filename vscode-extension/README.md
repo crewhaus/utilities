@@ -59,4 +59,4 @@ Declared in the manifest under `contributes.yamlValidation` — file pattern `cr
 - Dev launch: [.vscode/launch.json](./.vscode/launch.json) wires the F5 → Extension Development Host flow.
 - Sibling: [jetbrains-plugin](../jetbrains-plugin/) — IntelliJ / WebStorm / PyCharm parity
 
-> Inside this workspace, resolves as `workspace:*`. Not yet on the marketplace.
+> Inside this workspace, resolves as `workspace:*`. Published to npm as `@crewhaus/vscode-extension@0.1.5`; not yet on the VS Code Marketplace.

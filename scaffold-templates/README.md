@@ -58,4 +58,4 @@ console.log(t?.yaml); // ready to write to disk as crewhaus.yaml
 
 - Source: [src/index.ts](./src/index.ts), [src/scripts/start.ts](./src/scripts/start.ts)
 
-> Inside this workspace, resolves as `workspace:*`. Not yet on npm.
+> Inside this workspace, resolves as `workspace:*`. Published to npm as `@crewhaus/scaffold-templates@0.1.5`.
