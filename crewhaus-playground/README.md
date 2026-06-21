@@ -77,4 +77,4 @@ Per-session quota is tracked via a `sid` cookie (auto-generated for anonymous br
 
 - Source: [src/index.ts](./src/index.ts), [src/server.ts](./src/server.ts), [src/cli.ts](./src/cli.ts)
 
-> Inside this workspace, resolves as `workspace:*`. Not yet on npm.
+> Inside this workspace, resolves as `workspace:*`. Published to npm as `@crewhaus/crewhaus-playground@0.1.5`.
