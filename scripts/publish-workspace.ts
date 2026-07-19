@@ -11,12 +11,20 @@
  * range and breaks every install.
  *
  * Pre-flight:
- *   export NPM_CONFIG_TOKEN=…  # classic npm *Automation* token; a 2FA-bound
- *                              # token dead-ends `bun publish` in a web-OTP
- *                              # prompt ("failed to send OTP request")
- *   npm whoami                 # must succeed
+ *   export NPM_TOKEN=…         # classic npm *Automation* token (NPM_CONFIG_TOKEN
+ *                              # also accepted). A 2FA-bound token dead-ends
+ *                              # `bun publish` in a web-OTP prompt.
  *   bun install                # ensure node_modules are in shape
  *   bun run typecheck          # belt-and-braces
+ *
+ * Auth note (why setupRegistryAuth exists): the two CLIs this script drives
+ * read the token DIFFERENTLY, and current tooling versions diverged —
+ *   • `bun publish`   honors NPM_CONFIG_TOKEN, but IGNORES a userconfig .npmrc;
+ *   • `npm whoami/view` IGNORES NPM_CONFIG_TOKEN ("Unknown env config token")
+ *     and skips a project-dir .npmrc as "workspace config" — it needs a
+ *     `//registry/:_authToken` line in a *userconfig* .npmrc.
+ * setupRegistryAuth() bridges both from one token, so `npm login` is not
+ * needed and a plain NPM_TOKEN (e.g. from CrewHaus/.env) works directly.
  *
  * Run:
  *   bun scripts/publish-workspace.ts --dry-run                  # plan only
@@ -35,7 +43,8 @@
  */
 
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 
 type PkgInfo = {
@@ -57,6 +66,41 @@ const has = (name: string) => args.includes(`--${name}`);
 const DRY = has("dry-run");
 const FILTER = flag("filter"); // exact package name to publish, useful for retries
 const ROOT = resolve(flag("root") ?? process.cwd());
+
+/**
+ * Bridge one token to the two CLIs this script drives (see the header
+ * "Auth note"). Returns SEPARATE envs because they read auth differently AND
+ * because Bun's spawnSync does NOT inherit mutations to process.env — the env
+ * must be passed explicitly to every spawn:
+ *   • npmEnv — a userconfig .npmrc with `//registry/:_authToken` (npm ignores
+ *     NPM_CONFIG_TOKEN and skips a project .npmrc as "workspace config"). The
+ *     token env is stripped so npm's output stays clean across a 200-pkg run.
+ *   • bunEnv — NPM_CONFIG_TOKEN (bun publish honors it; ignores the userconfig).
+ * Accepts NPM_CONFIG_TOKEN or a plain NPM_TOKEN. No token → both fall back to
+ * process.env unchanged, so the whoami pre-check still fails helpfully.
+ */
+function buildAuthEnvs(): { npmEnv: NodeJS.ProcessEnv; bunEnv: NodeJS.ProcessEnv } {
+  const token = process.env.NPM_CONFIG_TOKEN || process.env.NPM_TOKEN;
+  if (!token) return { npmEnv: process.env, bunEnv: process.env };
+  let userconfig = process.env.NPM_CONFIG_USERCONFIG;
+  if (!userconfig) {
+    const dir = mkdtempSync(join(tmpdir(), "chpub-npmrc-"));
+    userconfig = join(dir, ".npmrc");
+    writeFileSync(userconfig, `//registry.npmjs.org/:_authToken=${token}\n`, { mode: 0o600 });
+    process.on("exit", () => {
+      try {
+        rmSync(dir, { recursive: true, force: true });
+      } catch {
+        /* best-effort cleanup of the throwaway token file */
+      }
+    });
+  }
+  const npmEnv: NodeJS.ProcessEnv = { ...process.env, NPM_CONFIG_USERCONFIG: userconfig };
+  delete npmEnv.NPM_CONFIG_TOKEN;
+  const bunEnv = { ...process.env, NPM_CONFIG_TOKEN: token };
+  return { npmEnv, bunEnv };
+}
+const { npmEnv, bunEnv } = buildAuthEnvs();
 
 function readJson<T = unknown>(path: string): T {
   return JSON.parse(readFileSync(path, "utf-8")) as T;
@@ -165,6 +209,7 @@ function topoSort(pkgs: PkgInfo[]): PkgInfo[] {
 function isPublished(name: string, version: string): boolean {
   const r = spawnSync("npm", ["view", `${name}@${version}`, "version"], {
     encoding: "utf-8",
+    env: npmEnv,
   });
   if (r.status === 0 && r.stdout.trim().length > 0) return true;
   return false;
@@ -190,6 +235,7 @@ function normRepoUrl(url: string | undefined): string {
 function ownershipMismatch(p: PkgInfo): string | null {
   const r = spawnSync("npm", ["view", p.name, "repository", "--json"], {
     encoding: "utf-8",
+    env: npmEnv,
   });
   if (r.status !== 0) return null; // name not on the registry — first publish
   let repo: { url?: string; directory?: string };
@@ -213,7 +259,7 @@ function publish(p: PkgInfo): PublishResult {
     return "ok";
   }
   // Capture output so we can recognize "already published" as success.
-  const r = spawnSync("bun", ["publish"], { cwd: p.dir, encoding: "utf-8" });
+  const r = spawnSync("bun", ["publish"], { cwd: p.dir, encoding: "utf-8", env: bunEnv });
   const out = (r.stdout ?? "") + (r.stderr ?? "");
   process.stdout.write(out);
   if (r.status === 0) return "ok";
@@ -225,7 +271,7 @@ function publish(p: PkgInfo): PublishResult {
 }
 
 // ─── main ──────────────────────────────────────────────────────────────────
-const whoamiResult = spawnSync("npm", ["whoami"], { encoding: "utf-8" });
+const whoamiResult = spawnSync("npm", ["whoami"], { encoding: "utf-8", env: npmEnv });
 if (!DRY && whoamiResult.status !== 0) {
   console.error("✗ npm whoami failed. Run `npm login` (or `npm login --scope=@crewhaus`) first.");
   console.error(`  stderr: ${whoamiResult.stderr?.trim()}`);
@@ -242,7 +288,7 @@ if (!DRY) {
   const { unlinkSync, existsSync: lockExists } = require("node:fs");
   const lockPath = join(ROOT, "bun.lock");
   if (lockExists(lockPath)) unlinkSync(lockPath);
-  const install = spawnSync("bun", ["install"], { cwd: ROOT, stdio: "inherit" });
+  const install = spawnSync("bun", ["install"], { cwd: ROOT, stdio: "inherit", env: bunEnv });
   if (install.status !== 0) {
     console.error("✗ bun install failed; aborting publish");
     process.exit(1);
