@@ -21,6 +21,10 @@
  *   - loop-model    — project a spec into the observe→…→update ring (single
  *                     agent) or a node canvas (workflow/graph/crew/…).
  *   - builder-state — text-first undo/redo history + coalescing + autosave hook.
+ *   - trace-stream  — consume a deployed harness's /chat SSE, surfacing verbatim
+ *                     TraceEvent frames (the "watch a run" transport).
+ *   - run-model     — fold a live trace stream into RunState the loop overlay
+ *                     renders (active ring segment / canvas node, cost, tokens).
  */
 
 export * from "./spec-model";
@@ -28,3 +32,5 @@ export * from "./spec-schema";
 export * from "./form-model";
 export * from "./loop-model";
 export * from "./builder-state";
+export * from "./trace-stream";
+export * from "./run-model";
