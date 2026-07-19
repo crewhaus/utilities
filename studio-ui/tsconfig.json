@@ -2,7 +2,15 @@
   "extends": "../tsconfig.base.json",
   "compilerOptions": {
     "rootDir": "src",
-    "outDir": "dist"
+    "outDir": "dist",
+    // The src/client/* modules are bundled for the browser (see build-editor.ts)
+    // and use DOM APIs. The server code (index.ts, scripts/start.ts) uses no DOM
+    // types — getStudioJs ships client JS as a string — so adding the DOM lib is
+    // safe. Match spec-forms' relaxed index-access flags for the shared-editor
+    // code lifted from studio-pwa.
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "noUncheckedIndexedAccess": false,
+    "noPropertyAccessFromIndexSignature": false
   },
   "include": ["src/**/*"]
 }

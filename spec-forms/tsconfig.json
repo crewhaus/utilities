@@ -1,0 +1,14 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    // The sources are lifted verbatim from studio-pwa (astro/tsconfigs/strict),
+    // which is `strict: true` WITHOUT these two extra flags. Keeping the copies
+    // byte-identical is what guarantees no drift between the two Studios, so we
+    // match that baseline rather than rewrite battle-tested, fully-tested code.
+    "noUncheckedIndexedAccess": false,
+    "noPropertyAccessFromIndexSignature": false
+  },
+  "include": ["src/**/*.ts", "src/spec-schema-snapshot.json"]
+}

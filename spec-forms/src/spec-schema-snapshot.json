@@ -1,0 +1,3561 @@
+{
+  "$ref": "#/definitions/CrewhausSpec",
+  "definitions": {
+    "cli": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[\\w .:-]+$"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "target": {
+          "type": "string",
+          "const": "cli"
+        },
+        "agent": {
+          "type": "object",
+          "properties": {
+            "model": {
+              "type": "string",
+              "minLength": 1
+            },
+            "instructions": {
+              "type": "string",
+              "minLength": 1
+            },
+            "max_tokens": {
+              "type": "integer",
+              "exclusiveMinimum": 0
+            },
+            "thinking": {
+              "type": "object",
+              "properties": {
+                "budget_tokens": {
+                  "type": "integer",
+                  "minimum": 1024
+                },
+                "effort": {
+                  "type": "string",
+                  "enum": [
+                    "low",
+                    "medium",
+                    "high"
+                  ]
+                }
+              },
+              "additionalProperties": false
+            },
+            "streaming": {
+              "type": "boolean"
+            },
+            "rate_limits": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object",
+                "properties": {
+                  "rpm": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0
+                  },
+                  "burst": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0
+                  }
+                },
+                "required": [
+                  "rpm"
+                ],
+                "additionalProperties": false
+              },
+              "propertyNames": {
+                "minLength": 1
+              }
+            },
+            "model_fallbacks": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "minItems": 1
+            },
+            "circuit_breaker": {
+              "type": "object",
+              "properties": {
+                "failureThreshold": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0
+                },
+                "windowMs": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0
+                },
+                "cooldownMs": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0
+                }
+              },
+              "additionalProperties": false
+            },
+            "model_tiers": {
+              "type": "object",
+              "properties": {
+                "fast": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "default": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "routing": {
+                  "type": "object",
+                  "properties": {
+                    "contextTokenThreshold": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0
+                    },
+                    "toolsToDefault": {
+                      "type": "boolean"
+                    },
+                    "firstTurnToDefault": {
+                      "type": "boolean"
+                    },
+                    "priorToolDensityThreshold": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "fast",
+                "default"
+              ],
+              "additionalProperties": false
+            },
+            "model_pool": {
+              "type": "object",
+              "properties": {
+                "candidates": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "model": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "tags": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "default": []
+                      }
+                    },
+                    "required": [
+                      "model"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "minItems": 2
+                },
+                "policy": {
+                  "type": "string",
+                  "enum": [
+                    "static",
+                    "heuristic",
+                    "learned"
+                  ],
+                  "default": "heuristic"
+                },
+                "objective": {
+                  "type": "object",
+                  "properties": {
+                    "quality": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "cost": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "latency": {
+                      "type": "number",
+                      "minimum": 0
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "routing": {
+                  "type": "object",
+                  "properties": {
+                    "contextTokenThreshold": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0
+                    },
+                    "toolsToDefault": {
+                      "type": "boolean"
+                    },
+                    "firstTurnToDefault": {
+                      "type": "boolean"
+                    },
+                    "priorToolDensityThreshold": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0
+                    },
+                    "strongTag": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "cheapTag": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "learning": {
+                  "type": "object",
+                  "properties": {
+                    "minSamplesPerArm": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0
+                    },
+                    "costRefUsd": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "latencyRefMs": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0
+                    },
+                    "explorationRate": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "seed": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "bandit": {
+                      "type": "string",
+                      "enum": [
+                        "epsilon-greedy",
+                        "thompson"
+                      ]
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "candidates"
+              ],
+              "additionalProperties": false
+            },
+            "sub_agents": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object",
+                "properties": {
+                  "description": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "instructions": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "tools": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "model": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "permissions": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "inherit",
+                          "scoped"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "allow": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "minLength": 1
+                            }
+                          },
+                          "deny": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "minLength": 1
+                            }
+                          }
+                        },
+                        "required": [
+                          "allow",
+                          "deny"
+                        ],
+                        "additionalProperties": false
+                      }
+                    ]
+                  },
+                  "inherit_bypass": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "description",
+                  "instructions"
+                ],
+                "additionalProperties": false
+              },
+              "propertyNames": {
+                "minLength": 1,
+                "pattern": "^[\\w .:-]+$"
+              }
+            }
+          },
+          "required": [
+            "model",
+            "instructions"
+          ],
+          "additionalProperties": false
+        },
+        "tools": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "tool_config": {
+          "type": "object",
+          "additionalProperties": {},
+          "propertyNames": {
+            "minLength": 1
+          }
+        },
+        "mcp_servers": {
+          "type": "object",
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "transport": {
+                    "type": "string",
+                    "const": "stdio"
+                  },
+                  "command": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "args": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "env": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": [
+                  "transport",
+                  "command"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "transport": {
+                    "type": "string",
+                    "const": "sse"
+                  },
+                  "url": {
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  "headers": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": [
+                  "transport",
+                  "url"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          },
+          "propertyNames": {
+            "minLength": 1
+          }
+        },
+        "permissions": {
+          "type": "object",
+          "properties": {
+            "mode": {
+              "type": "string",
+              "enum": [
+                "default",
+                "plan",
+                "auto"
+              ]
+            },
+            "rules": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "alwaysAllow",
+                      "alwaysDeny",
+                      "alwaysAsk"
+                    ]
+                  },
+                  "pattern": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "type",
+                  "pattern"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "ask_mode": {
+              "type": "string",
+              "enum": [
+                "pause",
+                "deny"
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        "compaction": {
+          "type": "object",
+          "properties": {
+            "model": {
+              "type": "string",
+              "minLength": 1
+            },
+            "threshold": {
+              "type": "number",
+              "minimum": 0.5,
+              "maximum": 0.99
+            },
+            "snip_keep_head": {
+              "type": "integer",
+              "exclusiveMinimum": 0
+            },
+            "snip_keep_tail": {
+              "type": "integer",
+              "exclusiveMinimum": 0
+            },
+            "curate": {
+              "type": "boolean"
+            },
+            "dedupeThreshold": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 1
+            },
+            "relevanceTopK": {
+              "type": "integer",
+              "exclusiveMinimum": 0
+            }
+          },
+          "additionalProperties": false
+        },
+        "security": {
+          "type": "object",
+          "properties": {
+            "justification": {
+              "type": "object",
+              "properties": {
+                "judge": {
+                  "type": "string",
+                  "enum": [
+                    "rule-based",
+                    "claude"
+                  ],
+                  "default": "rule-based"
+                },
+                "model": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "additionalProperties": false
+            },
+            "egressMatcher": {
+              "type": "string",
+              "enum": [
+                "substring",
+                "semantic"
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        "failure_taxonomy": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "class": {
+                "type": "string",
+                "minLength": 1
+              },
+              "pattern": {
+                "type": "string",
+                "minLength": 1
+              },
+              "recovery": {
+                "type": "string",
+                "enum": [
+                  "retry",
+                  "compact",
+                  "continue",
+                  "tombstone",
+                  "switch-model",
+                  "fail"
+                ]
+              },
+              "hint": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "class",
+              "pattern",
+              "recovery"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "budget": {
+          "type": "object",
+          "properties": {
+            "usd": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "on_exceed": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "action": {
+                      "type": "string",
+                      "const": "stop"
+                    }
+                  },
+                  "required": [
+                    "action"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "action": {
+                      "type": "string",
+                      "const": "degrade"
+                    },
+                    "model": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "required": [
+                    "action",
+                    "model"
+                  ],
+                  "additionalProperties": false
+                }
+              ],
+              "default": {
+                "action": "stop"
+              }
+            }
+          },
+          "required": [
+            "usd"
+          ],
+          "additionalProperties": false
+        },
+        "limits": {
+          "type": "object",
+          "properties": {
+            "max_tool_iterations": {
+              "type": "integer",
+              "exclusiveMinimum": 0
+            },
+            "max_concurrent_tools": {
+              "type": "integer",
+              "exclusiveMinimum": 0
+            },
+            "context_limit": {
+              "type": "integer",
+              "exclusiveMinimum": 0
+            },
+            "deadline_ms": {
+              "type": "integer",
+              "exclusiveMinimum": 0
+            },
+            "turn_timeout_ms": {
+              "type": "integer",
+              "exclusiveMinimum": 0
+            },
+            "model_call_timeout_ms": {
+              "type": "integer",
+              "exclusiveMinimum": 0
+            },
+            "loop_detection": {
+              "type": "object",
+              "properties": {
+                "window": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0
+                },
+                "threshold": {
+                  "type": "integer",
+                  "minimum": 2
+                },
+                "escalation": {
+                  "type": "string",
+                  "enum": [
+                    "warn",
+                    "justify",
+                    "abort"
+                  ]
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "hooks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "event": {
+                "type": "string",
+                "enum": [
+                  "session-start",
+                  "stop",
+                  "pre-tool",
+                  "post-tool",
+                  "pre-model",
+                  "post-model",
+                  "pre-compact",
+                  "post-compact",
+                  "pre-slash",
+                  "alert"
+                ]
+              },
+              "matcher": {
+                "type": "string",
+                "minLength": 1
+              },
+              "command": {
+                "type": "string",
+                "minLength": 1
+              },
+              "timeout_ms": {
+                "type": "integer",
+                "exclusiveMinimum": 0
+              }
+            },
+            "required": [
+              "event",
+              "command"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "evaluation": {
+          "type": "object",
+          "properties": {
+            "grader": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "llm_judge"
+                    },
+                    "model": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "judge model id; defaults to the shape's primary model (the cheapest sentinel resolves at compile time)"
+                    },
+                    "criteria": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "what a passing reply must satisfy — the judge scores the final text against this"
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "criteria"
+                  ],
+                  "additionalProperties": false,
+                  "description": "model-scored grader: an LLM judges the final text in [0,1] against criteria"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "contains"
+                    },
+                    "value": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "substring the final text must contain (case-sensitive)"
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "value"
+                  ],
+                  "additionalProperties": false,
+                  "description": "deterministic grader: pass iff the final text contains value"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "regex"
+                    },
+                    "value": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "JavaScript regular expression the final text must match"
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "value"
+                  ],
+                  "additionalProperties": false,
+                  "description": "deterministic grader: pass iff the final text matches the regex"
+                }
+              ]
+            },
+            "threshold": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "description": "passing score in 0..1 (default 0.7); llm_judge grader only"
+            },
+            "on_fail": {
+              "type": "string",
+              "enum": [
+                "retry",
+                "halt",
+                "note"
+              ],
+              "description": "below-threshold behaviour: retry re-prompts with the judge rationale (default), halt aborts the turn classified, note emits a trace event only"
+            },
+            "max_retries": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 5,
+              "description": "hard cap on evaluation-triggered retries per turn (default 1)"
+            }
+          },
+          "required": [
+            "grader"
+          ],
+          "additionalProperties": false,
+          "description": "in-loop output evaluation: score each completed assistant turn and retry/halt/note below threshold"
+        },
+        "feedback": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "modality": {
+              "type": "string",
+              "enum": [
+                "binary",
+                "stars",
+                "scale",
+                "comment"
+              ],
+              "default": "binary"
+            },
+            "scale": {
+              "type": "object",
+              "properties": {
+                "min": {
+                  "type": "integer"
+                },
+                "max": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "min",
+                "max"
+              ],
+              "additionalProperties": false
+            },
+            "storage": {
+              "type": "object",
+              "properties": {
+                "location": {
+                  "$ref": "#/definitions/cli/properties/name"
+                }
+              },
+              "required": [
+                "location"
+              ],
+              "additionalProperties": false
+            },
+            "autoDistill": {
+              "type": "boolean"
+            },
+            "exitPrompt": {
+              "type": "boolean"
+            },
+            "channelReactions": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": false
+        },
+        "memory": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "backend": {
+              "type": "string",
+              "enum": [
+                "file",
+                "thredz"
+              ]
+            },
+            "embedder": {
+              "type": "string",
+              "minLength": 1
+            },
+            "ttl": {
+              "type": "string",
+              "pattern": "^\\d+(?:ms|s|m|h|d)$"
+            },
+            "autoCapture": {
+              "type": "boolean"
+            },
+            "autoCaptureThreshold": {
+              "type": "integer",
+              "exclusiveMinimum": 0
+            },
+            "autoRecall": {
+              "type": "boolean"
+            },
+            "recallK": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 50
+            },
+            "wiki": {
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "type": "boolean"
+                },
+                "recallK": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 50
+                },
+                "embedder": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "autoRecall": {
+                  "type": "boolean"
+                },
+                "requireSources": {
+                  "type": "boolean"
+                }
+              },
+              "additionalProperties": false
+            },
+            "dream": {
+              "type": "object",
+              "properties": {
+                "every": {
+                  "type": "string",
+                  "pattern": "^\\d+(?:ms|s|m|h|d)$"
+                },
+                "mode": {
+                  "type": "string",
+                  "enum": [
+                    "deterministic",
+                    "full"
+                  ]
+                },
+                "budget_usd": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "instructions": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "every"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "continuity": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "type": "boolean"
+                },
+                "plan": {
+                  "type": "boolean"
+                },
+                "proof": {
+                  "type": "string",
+                  "enum": [
+                    "ladder",
+                    "require",
+                    "off"
+                  ]
+                },
+                "ledger": {
+                  "type": "boolean"
+                },
+                "handoff": {
+                  "type": "boolean"
+                },
+                "scope": {
+                  "type": "string",
+                  "enum": [
+                    "auto",
+                    "spec",
+                    "session"
+                  ]
+                },
+                "focusMaxChars": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0
+                }
+              },
+              "additionalProperties": false
+            }
+          ]
+        },
+        "thredz": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "object",
+              "properties": {
+                "api_key": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "base_url": {
+                  "type": "string",
+                  "format": "uri"
+                },
+                "visibility": {
+                  "type": "string",
+                  "enum": [
+                    "private",
+                    "shared"
+                  ]
+                },
+                "goals": {
+                  "type": "boolean"
+                },
+                "agents": {
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^[a-z][a-z0-9-]{2,31}$"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "api_key"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "learning": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "domain": {
+              "type": "string",
+              "minLength": 1
+            },
+            "curriculum": {
+              "type": "string",
+              "minLength": 1
+            },
+            "sources": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "exam": {
+              "type": "object",
+              "properties": {
+                "dataset": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "graders": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "dataset",
+                "graders"
+              ],
+              "additionalProperties": false
+            },
+            "study": {
+              "type": "object",
+              "properties": {
+                "on_heartbeat": {
+                  "type": "boolean"
+                },
+                "on_dream": {
+                  "type": "boolean"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "domain"
+          ],
+          "additionalProperties": false
+        },
+        "observability": {
+          "type": "object",
+          "properties": {
+            "slo": {
+              "type": "object",
+              "properties": {
+                "error_rate": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "p95_latency_ms": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                "ttft_ms": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                "cost_per_hour_usd": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                "egress_block_rate": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "window_seconds": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0
+                },
+                "mitigation": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "alert",
+                      "pause-intake",
+                      "rollback"
+                    ]
+                  },
+                  "minItems": 1
+                }
+              },
+              "additionalProperties": false
+            },
+            "trace": {
+              "type": "object",
+              "properties": {
+                "level": {
+                  "type": "string",
+                  "enum": [
+                    "off",
+                    "ring",
+                    "pretty",
+                    "json"
+                  ],
+                  "default": "ring"
+                }
+              },
+              "additionalProperties": false
+            },
+            "metrics": {
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "type": "boolean",
+                  "default": true
+                }
+              },
+              "additionalProperties": false
+            },
+            "cost": {
+              "$ref": "#/definitions/cli/properties/observability/properties/metrics"
+            },
+            "alerts": {
+              "$ref": "#/definitions/cli/properties/observability/properties/metrics"
+            },
+            "incidents": {
+              "$ref": "#/definitions/cli/properties/observability/properties/metrics"
+            },
+            "otel": {
+              "type": "object",
+              "properties": {
+                "endpoint": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "cli": {
+          "type": "object",
+          "properties": {
+            "banner": {
+              "type": "object",
+              "properties": {
+                "taglineMode": {
+                  "type": "string",
+                  "enum": [
+                    "static",
+                    "random"
+                  ],
+                  "default": "static"
+                },
+                "taglines": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "minItems": 1
+                }
+              },
+              "required": [
+                "taglines"
+              ],
+              "additionalProperties": false
+            },
+            "tui": {
+              "type": "string",
+              "enum": [
+                "basic",
+                "rich"
+              ],
+              "default": "basic"
+            }
+          },
+          "additionalProperties": false
+        },
+        "chains": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "kind": {
+                "type": "string",
+                "const": "evm"
+              },
+              "rpcUrls": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "minItems": 1
+              },
+              "rpcPolicy": {
+                "type": "string",
+                "enum": [
+                  "single",
+                  "quorum",
+                  "fallback"
+                ],
+                "default": "single"
+              },
+              "finality": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "confirmations"
+                      },
+                      "count": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 256
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "count"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "finalized"
+                      }
+                    },
+                    "required": [
+                      "kind"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "safe"
+                      }
+                    },
+                    "required": [
+                      "kind"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              },
+              "reorgTolerant": {
+                "type": "boolean",
+                "default": true
+              }
+            },
+            "required": [
+              "id",
+              "kind",
+              "rpcUrls",
+              "finality"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "wallets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "chainId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "custody": {
+                "type": "string",
+                "enum": [
+                  "user-controlled",
+                  "kms",
+                  "hsm",
+                  "local"
+                ]
+              },
+              "signingPolicy": {
+                "type": "string",
+                "enum": [
+                  "explicit-user-approval",
+                  "policy-gated",
+                  "automated"
+                ],
+                "default": "explicit-user-approval"
+              },
+              "keyRef": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "id",
+              "chainId",
+              "custody"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "contracts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "chainId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "address": {
+                "type": "string",
+                "minLength": 1
+              },
+              "abiRef": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "id",
+              "chainId",
+              "address",
+              "abiRef"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "transaction_policy": {
+          "type": "object",
+          "properties": {
+            "defaultWriteApproval": {
+              "type": "string",
+              "enum": [
+                "required",
+                "policy",
+                "none"
+              ],
+              "default": "required"
+            },
+            "maxValueUsd": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "maxValueWei": {
+              "type": "string",
+              "pattern": "^(0x[0-9a-fA-F]+|[0-9]+)$"
+            },
+            "allowedContracts": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "default": []
+            },
+            "simulationRequired": {
+              "type": "boolean",
+              "default": true
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "name",
+        "target",
+        "agent"
+      ],
+      "additionalProperties": false
+    },
+    "workflow": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "$ref": "#/definitions/cli/properties/name"
+        },
+        "version": {
+          "$ref": "#/definitions/cli/properties/version"
+        },
+        "target": {
+          "type": "string",
+          "const": "workflow"
+        },
+        "model": {
+          "type": "string",
+          "minLength": 1
+        },
+        "steps": {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "$ref": "#/definitions/cli/properties/name"
+                  },
+                  "instructions": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "model": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "max_tokens": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0
+                  },
+                  "thinking": {
+                    "$ref": "#/definitions/cli/properties/agent/properties/thinking"
+                  },
+                  "tools": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "tool_config": {
+                    "$ref": "#/definitions/cli/properties/tool_config"
+                  }
+                },
+                "required": [
+                  "name",
+                  "instructions"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "$ref": "#/definitions/cli/properties/name"
+                  },
+                  "kind": {
+                    "type": "string",
+                    "const": "judge"
+                  },
+                  "judge": {
+                    "type": "object",
+                    "properties": {
+                      "criteria": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "what a passing upstream output must satisfy — the judge scores against this"
+                      },
+                      "model": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "judge model id; defaults to the shape's top-level model"
+                      },
+                      "threshold": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1,
+                        "description": "passing score in 0..1 (default 0.7)"
+                      },
+                      "on_fail": {
+                        "type": "string",
+                        "enum": [
+                          "retry_previous",
+                          "halt",
+                          "continue"
+                        ],
+                        "description": "below-threshold behaviour: retry_previous re-runs the gated step/node (default), halt aborts classified, continue records the verdict and proceeds"
+                      },
+                      "max_retries": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 5,
+                        "description": "hard cap on judge-triggered re-runs of the gated step/node (default 1)"
+                      }
+                    },
+                    "required": [
+                      "criteria"
+                    ],
+                    "additionalProperties": false,
+                    "description": "judge gate config for kind: judge workflow steps and graph nodes"
+                  }
+                },
+                "required": [
+                  "name",
+                  "kind",
+                  "judge"
+                ],
+                "additionalProperties": false,
+                "description": "judge gate step: scores the previous step's output instead of running an agent turn"
+              }
+            ]
+          },
+          "minItems": 1
+        },
+        "mcp_servers": {
+          "$ref": "#/definitions/cli/properties/mcp_servers"
+        },
+        "permissions": {
+          "$ref": "#/definitions/cli/properties/permissions"
+        },
+        "compaction": {
+          "$ref": "#/definitions/cli/properties/compaction"
+        },
+        "failure_taxonomy": {
+          "$ref": "#/definitions/cli/properties/failure_taxonomy"
+        },
+        "budget": {
+          "$ref": "#/definitions/cli/properties/budget"
+        },
+        "limits": {
+          "$ref": "#/definitions/cli/properties/limits"
+        },
+        "hooks": {
+          "$ref": "#/definitions/cli/properties/hooks"
+        },
+        "continuity": {
+          "$ref": "#/definitions/cli/properties/continuity"
+        },
+        "chains": {
+          "$ref": "#/definitions/cli/properties/chains"
+        },
+        "wallets": {
+          "$ref": "#/definitions/cli/properties/wallets"
+        },
+        "contracts": {
+          "$ref": "#/definitions/cli/properties/contracts"
+        },
+        "transaction_policy": {
+          "$ref": "#/definitions/cli/properties/transaction_policy"
+        }
+      },
+      "required": [
+        "name",
+        "target",
+        "model",
+        "steps"
+      ],
+      "additionalProperties": false
+    },
+    "channel": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "$ref": "#/definitions/cli/properties/name"
+        },
+        "version": {
+          "$ref": "#/definitions/cli/properties/version"
+        },
+        "target": {
+          "type": "string",
+          "const": "channel"
+        },
+        "agent": {
+          "type": "object",
+          "properties": {
+            "model": {
+              "type": "string",
+              "minLength": 1
+            },
+            "instructions": {
+              "type": "string",
+              "minLength": 1
+            },
+            "max_tokens": {
+              "type": "integer",
+              "exclusiveMinimum": 0
+            },
+            "thinking": {
+              "$ref": "#/definitions/cli/properties/agent/properties/thinking"
+            },
+            "rate_limits": {
+              "$ref": "#/definitions/cli/properties/agent/properties/rate_limits"
+            },
+            "model_fallbacks": {
+              "$ref": "#/definitions/cli/properties/agent/properties/model_fallbacks"
+            },
+            "circuit_breaker": {
+              "$ref": "#/definitions/cli/properties/agent/properties/circuit_breaker"
+            },
+            "model_tiers": {
+              "$ref": "#/definitions/cli/properties/agent/properties/model_tiers"
+            },
+            "model_pool": {
+              "$ref": "#/definitions/cli/properties/agent/properties/model_pool"
+            },
+            "tools": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "tool_config": {
+              "$ref": "#/definitions/cli/properties/tool_config"
+            },
+            "sub_agents": {
+              "$ref": "#/definitions/cli/properties/agent/properties/sub_agents"
+            }
+          },
+          "required": [
+            "model",
+            "instructions"
+          ],
+          "additionalProperties": false
+        },
+        "channels": {
+          "type": "object",
+          "properties": {
+            "slack": {
+              "type": "object",
+              "properties": {
+                "botToken": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "signingSecret": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "appToken": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "reserved for a future Socket Mode path; parsed but unused by the v0 webhook daemon"
+                }
+              },
+              "required": [
+                "botToken",
+                "signingSecret"
+              ],
+              "additionalProperties": false
+            },
+            "telegram": {
+              "type": "object",
+              "properties": {
+                "botToken": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "secretToken": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "botToken",
+                "secretToken"
+              ],
+              "additionalProperties": false
+            },
+            "discord": {
+              "type": "object",
+              "properties": {
+                "applicationId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "botToken": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "publicKeyHex": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "applicationId",
+                "botToken",
+                "publicKeyHex"
+              ],
+              "additionalProperties": false
+            },
+            "whatsapp": {
+              "type": "object",
+              "properties": {
+                "phoneNumberId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "accessToken": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "appSecret": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "phoneNumberId",
+                "accessToken",
+                "appSecret"
+              ],
+              "additionalProperties": false
+            },
+            "imessage": {
+              "type": "object",
+              "properties": {
+                "chatDbPath": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "cursorPath": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "routing": {
+          "type": "object",
+          "properties": {
+            "sessionKey": {
+              "type": "string",
+              "enum": [
+                "thread",
+                "user",
+                "channel"
+              ]
+            }
+          },
+          "required": [
+            "sessionKey"
+          ],
+          "additionalProperties": false
+        },
+        "mcp_servers": {
+          "$ref": "#/definitions/cli/properties/mcp_servers"
+        },
+        "permissions": {
+          "$ref": "#/definitions/cli/properties/permissions"
+        },
+        "compaction": {
+          "$ref": "#/definitions/cli/properties/compaction"
+        },
+        "failure_taxonomy": {
+          "$ref": "#/definitions/cli/properties/failure_taxonomy"
+        },
+        "budget": {
+          "$ref": "#/definitions/cli/properties/budget"
+        },
+        "limits": {
+          "$ref": "#/definitions/cli/properties/limits"
+        },
+        "hooks": {
+          "$ref": "#/definitions/cli/properties/hooks"
+        },
+        "evaluation": {
+          "$ref": "#/definitions/cli/properties/evaluation"
+        },
+        "feedback": {
+          "$ref": "#/definitions/cli/properties/feedback"
+        },
+        "memory": {
+          "$ref": "#/definitions/cli/properties/memory"
+        },
+        "continuity": {
+          "$ref": "#/definitions/cli/properties/continuity"
+        },
+        "thredz": {
+          "$ref": "#/definitions/cli/properties/thredz"
+        },
+        "learning": {
+          "$ref": "#/definitions/cli/properties/learning"
+        },
+        "observability": {
+          "$ref": "#/definitions/cli/properties/observability"
+        },
+        "heartbeat": {
+          "type": "object",
+          "properties": {
+            "every": {
+              "type": "string",
+              "pattern": "^\\d+(?:ms|s|m|h|d)$"
+            },
+            "instructions": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "every",
+            "instructions"
+          ],
+          "additionalProperties": false
+        },
+        "gateway": {
+          "type": "object",
+          "properties": {
+            "port": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 65535
+            },
+            "ui": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "required": [
+            "port"
+          ],
+          "additionalProperties": false
+        },
+        "chains": {
+          "$ref": "#/definitions/cli/properties/chains"
+        },
+        "wallets": {
+          "$ref": "#/definitions/cli/properties/wallets"
+        },
+        "contracts": {
+          "$ref": "#/definitions/cli/properties/contracts"
+        },
+        "transaction_policy": {
+          "$ref": "#/definitions/cli/properties/transaction_policy"
+        }
+      },
+      "required": [
+        "name",
+        "target",
+        "agent",
+        "channels",
+        "routing"
+      ],
+      "additionalProperties": false
+    },
+    "graph": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "$ref": "#/definitions/cli/properties/name"
+        },
+        "version": {
+          "$ref": "#/definitions/cli/properties/version"
+        },
+        "target": {
+          "type": "string",
+          "const": "graph"
+        },
+        "model": {
+          "type": "string",
+          "minLength": 1
+        },
+        "entry": {
+          "type": "string",
+          "minLength": 1
+        },
+        "nodes": {
+          "type": "object",
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "instructions": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "model": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "max_tokens": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0
+                  },
+                  "thinking": {
+                    "$ref": "#/definitions/cli/properties/agent/properties/thinking"
+                  },
+                  "tools": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "tool_config": {
+                    "$ref": "#/definitions/cli/properties/tool_config"
+                  },
+                  "hitl": {
+                    "type": "object",
+                    "properties": {
+                      "prompt": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "required": [
+                      "prompt"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "instructions"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "judge"
+                  },
+                  "judge": {
+                    "$ref": "#/definitions/workflow/properties/steps/items/anyOf/1/properties/judge"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "judge"
+                ],
+                "additionalProperties": false,
+                "description": "judge gate node: scores the upstream node's output instead of running an agent turn"
+              }
+            ]
+          },
+          "propertyNames": {
+            "minLength": 1,
+            "pattern": "^[\\w .:-]+$"
+          }
+        },
+        "edges": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "from": {
+                "type": "string",
+                "minLength": 1
+              },
+              "to": {
+                "type": "string",
+                "minLength": 1
+              },
+              "when": {
+                "type": "object",
+                "properties": {
+                  "key": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "equals": {
+                    "type": [
+                      "string",
+                      "number",
+                      "boolean"
+                    ]
+                  },
+                  "exists": {
+                    "type": "boolean",
+                    "const": true
+                  }
+                },
+                "required": [
+                  "key"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "from",
+              "to"
+            ],
+            "additionalProperties": false
+          },
+          "default": []
+        },
+        "parallel": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 2
+          }
+        },
+        "permissions": {
+          "$ref": "#/definitions/cli/properties/permissions"
+        },
+        "compaction": {
+          "$ref": "#/definitions/cli/properties/compaction"
+        },
+        "failure_taxonomy": {
+          "$ref": "#/definitions/cli/properties/failure_taxonomy"
+        },
+        "budget": {
+          "$ref": "#/definitions/cli/properties/budget"
+        },
+        "limits": {
+          "$ref": "#/definitions/cli/properties/limits"
+        },
+        "hooks": {
+          "$ref": "#/definitions/cli/properties/hooks"
+        },
+        "chains": {
+          "$ref": "#/definitions/cli/properties/chains"
+        },
+        "wallets": {
+          "$ref": "#/definitions/cli/properties/wallets"
+        },
+        "contracts": {
+          "$ref": "#/definitions/cli/properties/contracts"
+        },
+        "transaction_policy": {
+          "$ref": "#/definitions/cli/properties/transaction_policy"
+        }
+      },
+      "required": [
+        "name",
+        "target",
+        "model",
+        "entry",
+        "nodes"
+      ],
+      "additionalProperties": false
+    },
+    "managed": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "$ref": "#/definitions/cli/properties/name"
+        },
+        "version": {
+          "$ref": "#/definitions/cli/properties/version"
+        },
+        "target": {
+          "type": "string",
+          "const": "managed"
+        },
+        "agent": {
+          "type": "object",
+          "properties": {
+            "model": {
+              "type": "string",
+              "minLength": 1
+            },
+            "instructions": {
+              "type": "string",
+              "minLength": 1
+            },
+            "max_tokens": {
+              "type": "integer",
+              "exclusiveMinimum": 0
+            },
+            "thinking": {
+              "$ref": "#/definitions/cli/properties/agent/properties/thinking"
+            },
+            "rate_limits": {
+              "$ref": "#/definitions/cli/properties/agent/properties/rate_limits"
+            },
+            "model_fallbacks": {
+              "$ref": "#/definitions/cli/properties/agent/properties/model_fallbacks"
+            },
+            "circuit_breaker": {
+              "$ref": "#/definitions/cli/properties/agent/properties/circuit_breaker"
+            },
+            "model_tiers": {
+              "$ref": "#/definitions/cli/properties/agent/properties/model_tiers"
+            },
+            "model_pool": {
+              "$ref": "#/definitions/cli/properties/agent/properties/model_pool"
+            }
+          },
+          "required": [
+            "model",
+            "instructions"
+          ],
+          "additionalProperties": false
+        },
+        "tenants": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "budget": {
+                "type": "object",
+                "properties": {
+                  "maxInputTokens": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0
+                  },
+                  "maxOutputTokens": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0
+                  }
+                },
+                "required": [
+                  "maxInputTokens",
+                  "maxOutputTokens"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "id",
+              "budget"
+            ],
+            "additionalProperties": false
+          },
+          "minItems": 1
+        },
+        "permissions": {
+          "$ref": "#/definitions/cli/properties/permissions"
+        },
+        "compaction": {
+          "$ref": "#/definitions/cli/properties/compaction"
+        },
+        "failure_taxonomy": {
+          "$ref": "#/definitions/cli/properties/failure_taxonomy"
+        },
+        "budget": {
+          "$ref": "#/definitions/cli/properties/budget"
+        },
+        "limits": {
+          "$ref": "#/definitions/cli/properties/limits"
+        },
+        "hooks": {
+          "$ref": "#/definitions/cli/properties/hooks"
+        },
+        "evaluation": {
+          "$ref": "#/definitions/cli/properties/evaluation"
+        },
+        "memory": {
+          "$ref": "#/definitions/cli/properties/memory"
+        },
+        "continuity": {
+          "$ref": "#/definitions/cli/properties/continuity"
+        },
+        "thredz": {
+          "$ref": "#/definitions/cli/properties/thredz"
+        },
+        "learning": {
+          "$ref": "#/definitions/cli/properties/learning"
+        },
+        "observability": {
+          "$ref": "#/definitions/cli/properties/observability"
+        }
+      },
+      "required": [
+        "name",
+        "target",
+        "agent",
+        "tenants"
+      ],
+      "additionalProperties": false
+    },
+    "pipeline": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "$ref": "#/definitions/cli/properties/name"
+        },
+        "version": {
+          "$ref": "#/definitions/cli/properties/version"
+        },
+        "target": {
+          "type": "string",
+          "const": "pipeline"
+        },
+        "agent": {
+          "type": "object",
+          "properties": {
+            "model": {
+              "type": "string",
+              "minLength": 1
+            },
+            "instructions": {
+              "type": "string",
+              "minLength": 1
+            },
+            "model_pool": {
+              "$ref": "#/definitions/cli/properties/agent/properties/model_pool"
+            }
+          },
+          "required": [
+            "model",
+            "instructions"
+          ],
+          "additionalProperties": false
+        },
+        "retrieve": {
+          "type": "object",
+          "properties": {
+            "embedderModel": {
+              "type": "string",
+              "minLength": 1
+            },
+            "vectorBackend": {
+              "type": "string",
+              "enum": [
+                "in-memory",
+                "lance",
+                "qdrant",
+                "pinecone",
+                "weaviate"
+              ],
+              "default": "in-memory"
+            },
+            "defaultK": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 50,
+              "default": 5
+            },
+            "url": {
+              "type": "string",
+              "minLength": 1
+            },
+            "collection": {
+              "type": "string",
+              "minLength": 1
+            },
+            "apiKey": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "embedderModel"
+          ],
+          "additionalProperties": false
+        },
+        "indexing": {
+          "type": "object",
+          "properties": {
+            "chunkStrategy": {
+              "type": "string",
+              "enum": [
+                "fixed",
+                "semantic",
+                "markdown"
+              ],
+              "default": "fixed"
+            },
+            "chunkSize": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "default": 400
+            },
+            "chunkOverlap": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            },
+            "documents": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "text": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "metadata": {
+                    "type": "object",
+                    "additionalProperties": {}
+                  }
+                },
+                "required": [
+                  "id",
+                  "text"
+                ],
+                "additionalProperties": false
+              },
+              "minItems": 1
+            }
+          },
+          "required": [
+            "documents"
+          ],
+          "additionalProperties": false
+        },
+        "permissions": {
+          "$ref": "#/definitions/cli/properties/permissions"
+        },
+        "compaction": {
+          "$ref": "#/definitions/cli/properties/compaction"
+        },
+        "failure_taxonomy": {
+          "$ref": "#/definitions/cli/properties/failure_taxonomy"
+        }
+      },
+      "required": [
+        "name",
+        "target",
+        "agent",
+        "retrieve",
+        "indexing"
+      ],
+      "additionalProperties": false
+    },
+    "crew": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "$ref": "#/definitions/cli/properties/name"
+        },
+        "version": {
+          "$ref": "#/definitions/cli/properties/version"
+        },
+        "target": {
+          "type": "string",
+          "const": "crew"
+        },
+        "model": {
+          "type": "string",
+          "minLength": 1
+        },
+        "entry": {
+          "type": "string",
+          "minLength": 1
+        },
+        "roles": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "instructions": {
+                "type": "string",
+                "minLength": 1
+              },
+              "model": {
+                "type": "string",
+                "minLength": 1
+              },
+              "max_tokens": {
+                "type": "integer",
+                "exclusiveMinimum": 0
+              },
+              "thinking": {
+                "$ref": "#/definitions/cli/properties/agent/properties/thinking"
+              },
+              "tools": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "tool_config": {
+                "$ref": "#/definitions/cli/properties/tool_config"
+              },
+              "sub_agents": {
+                "$ref": "#/definitions/cli/properties/agent/properties/sub_agents"
+              }
+            },
+            "required": [
+              "instructions"
+            ],
+            "additionalProperties": false
+          },
+          "propertyNames": {
+            "minLength": 1,
+            "pattern": "^[\\w .:-]+$"
+          }
+        },
+        "routing": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "match",
+                "llm"
+              ]
+            },
+            "match": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "contains": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "to": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "required": [
+                    "contains",
+                    "to"
+                  ],
+                  "additionalProperties": false
+                },
+                "minItems": 1
+              },
+              "propertyNames": {
+                "minLength": 1
+              }
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        },
+        "mcp_servers": {
+          "$ref": "#/definitions/cli/properties/mcp_servers"
+        },
+        "permissions": {
+          "$ref": "#/definitions/cli/properties/permissions"
+        },
+        "compaction": {
+          "$ref": "#/definitions/cli/properties/compaction"
+        },
+        "failure_taxonomy": {
+          "$ref": "#/definitions/cli/properties/failure_taxonomy"
+        },
+        "budget": {
+          "$ref": "#/definitions/cli/properties/budget"
+        },
+        "limits": {
+          "type": "object",
+          "properties": {
+            "max_tool_iterations": {
+              "$ref": "#/definitions/cli/properties/limits/properties/max_tool_iterations"
+            },
+            "max_concurrent_tools": {
+              "$ref": "#/definitions/cli/properties/limits/properties/max_concurrent_tools"
+            },
+            "context_limit": {
+              "$ref": "#/definitions/cli/properties/limits/properties/context_limit"
+            },
+            "deadline_ms": {
+              "$ref": "#/definitions/cli/properties/limits/properties/deadline_ms"
+            },
+            "turn_timeout_ms": {
+              "$ref": "#/definitions/cli/properties/limits/properties/turn_timeout_ms"
+            },
+            "model_call_timeout_ms": {
+              "$ref": "#/definitions/cli/properties/limits/properties/model_call_timeout_ms"
+            },
+            "loop_detection": {
+              "$ref": "#/definitions/cli/properties/limits/properties/loop_detection"
+            },
+            "crew": {
+              "type": "object",
+              "properties": {
+                "max_activations": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0
+                },
+                "refusal_depth": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "max_a2a_depth": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "hooks": {
+          "$ref": "#/definitions/cli/properties/hooks"
+        },
+        "memory": {
+          "$ref": "#/definitions/cli/properties/memory"
+        },
+        "continuity": {
+          "$ref": "#/definitions/cli/properties/continuity"
+        },
+        "thredz": {
+          "$ref": "#/definitions/cli/properties/thredz"
+        },
+        "learning": {
+          "$ref": "#/definitions/cli/properties/learning"
+        },
+        "observability": {
+          "$ref": "#/definitions/cli/properties/observability"
+        },
+        "chains": {
+          "$ref": "#/definitions/cli/properties/chains"
+        },
+        "wallets": {
+          "$ref": "#/definitions/cli/properties/wallets"
+        },
+        "contracts": {
+          "$ref": "#/definitions/cli/properties/contracts"
+        },
+        "transaction_policy": {
+          "$ref": "#/definitions/cli/properties/transaction_policy"
+        }
+      },
+      "required": [
+        "name",
+        "target",
+        "model",
+        "entry",
+        "roles"
+      ],
+      "additionalProperties": false
+    },
+    "research": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "$ref": "#/definitions/cli/properties/name"
+        },
+        "version": {
+          "$ref": "#/definitions/cli/properties/version"
+        },
+        "target": {
+          "type": "string",
+          "const": "research"
+        },
+        "agent": {
+          "type": "object",
+          "properties": {
+            "model": {
+              "$ref": "#/definitions/pipeline/properties/agent/properties/model"
+            },
+            "instructions": {
+              "$ref": "#/definitions/pipeline/properties/agent/properties/instructions"
+            },
+            "model_pool": {
+              "$ref": "#/definitions/cli/properties/agent/properties/model_pool"
+            },
+            "max_tokens": {
+              "type": "integer",
+              "exclusiveMinimum": 0
+            }
+          },
+          "required": [
+            "model",
+            "instructions"
+          ],
+          "additionalProperties": false
+        },
+        "goal": {
+          "type": "string",
+          "minLength": 1
+        },
+        "branchingFactor": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8,
+          "default": 3
+        },
+        "maxDurationMs": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "default": 300000
+        },
+        "retrieve": {
+          "type": "object",
+          "properties": {
+            "allowedOrigins": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "default": []
+            },
+            "allowedFileRoots": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "default": []
+            },
+            "vectorBackend": {
+              "type": "string",
+              "enum": [
+                "in-memory",
+                "lance",
+                "qdrant",
+                "pinecone",
+                "weaviate"
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "default": {}
+        },
+        "tools": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "tool_config": {
+          "$ref": "#/definitions/cli/properties/tool_config"
+        },
+        "mcp_servers": {
+          "$ref": "#/definitions/cli/properties/mcp_servers"
+        },
+        "permissions": {
+          "$ref": "#/definitions/cli/properties/permissions"
+        },
+        "compaction": {
+          "$ref": "#/definitions/cli/properties/compaction"
+        },
+        "failure_taxonomy": {
+          "$ref": "#/definitions/cli/properties/failure_taxonomy"
+        },
+        "budget": {
+          "$ref": "#/definitions/cli/properties/budget"
+        },
+        "limits": {
+          "$ref": "#/definitions/cli/properties/limits"
+        },
+        "hooks": {
+          "$ref": "#/definitions/cli/properties/hooks"
+        },
+        "memory": {
+          "$ref": "#/definitions/cli/properties/memory"
+        },
+        "continuity": {
+          "$ref": "#/definitions/cli/properties/continuity"
+        },
+        "thredz": {
+          "$ref": "#/definitions/cli/properties/thredz"
+        },
+        "learning": {
+          "$ref": "#/definitions/cli/properties/learning"
+        },
+        "chains": {
+          "$ref": "#/definitions/cli/properties/chains"
+        },
+        "wallets": {
+          "$ref": "#/definitions/cli/properties/wallets"
+        },
+        "contracts": {
+          "$ref": "#/definitions/cli/properties/contracts"
+        },
+        "transaction_policy": {
+          "$ref": "#/definitions/cli/properties/transaction_policy"
+        }
+      },
+      "required": [
+        "name",
+        "target",
+        "agent",
+        "goal"
+      ],
+      "additionalProperties": false
+    },
+    "batch": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "$ref": "#/definitions/cli/properties/name"
+        },
+        "version": {
+          "$ref": "#/definitions/cli/properties/version"
+        },
+        "target": {
+          "type": "string",
+          "const": "batch"
+        },
+        "agent": {
+          "$ref": "#/definitions/research/properties/agent"
+        },
+        "queue": {
+          "type": "object",
+          "properties": {
+            "adapter": {
+              "type": "string",
+              "enum": [
+                "in-memory",
+                "sqs",
+                "redis-streams",
+                "postgres"
+              ]
+            },
+            "visibilityTimeoutMs": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "default": 30000
+            },
+            "visibilityRenewIntervalMs": {
+              "type": "integer",
+              "exclusiveMinimum": 0
+            },
+            "maxRetries": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10,
+              "default": 3
+            },
+            "seedJobs": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "required": [
+            "adapter"
+          ],
+          "additionalProperties": false
+        },
+        "concurrency": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 64,
+          "default": 4
+        },
+        "idempotencyWindowMs": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "default": 60000
+        },
+        "tools": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "tool_config": {
+          "$ref": "#/definitions/cli/properties/tool_config"
+        },
+        "mcp_servers": {
+          "$ref": "#/definitions/cli/properties/mcp_servers"
+        },
+        "permissions": {
+          "$ref": "#/definitions/cli/properties/permissions"
+        },
+        "compaction": {
+          "$ref": "#/definitions/cli/properties/compaction"
+        },
+        "failure_taxonomy": {
+          "$ref": "#/definitions/cli/properties/failure_taxonomy"
+        },
+        "budget": {
+          "$ref": "#/definitions/cli/properties/budget"
+        },
+        "limits": {
+          "$ref": "#/definitions/cli/properties/limits"
+        },
+        "hooks": {
+          "$ref": "#/definitions/cli/properties/hooks"
+        },
+        "continuity": {
+          "$ref": "#/definitions/cli/properties/continuity"
+        },
+        "chains": {
+          "$ref": "#/definitions/cli/properties/chains"
+        },
+        "wallets": {
+          "$ref": "#/definitions/cli/properties/wallets"
+        },
+        "contracts": {
+          "$ref": "#/definitions/cli/properties/contracts"
+        },
+        "transaction_policy": {
+          "$ref": "#/definitions/cli/properties/transaction_policy"
+        }
+      },
+      "required": [
+        "name",
+        "target",
+        "agent",
+        "queue"
+      ],
+      "additionalProperties": false
+    },
+    "voice": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "$ref": "#/definitions/cli/properties/name"
+        },
+        "version": {
+          "$ref": "#/definitions/cli/properties/version"
+        },
+        "target": {
+          "type": "string",
+          "const": "voice"
+        },
+        "agent": {
+          "type": "object",
+          "properties": {
+            "model": {
+              "type": "string",
+              "minLength": 1
+            },
+            "instructions": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "model",
+            "instructions"
+          ],
+          "additionalProperties": false
+        },
+        "voice": {
+          "type": "object",
+          "properties": {
+            "provider": {
+              "type": "string",
+              "enum": [
+                "openai",
+                "vapi"
+              ]
+            },
+            "voiceId": {
+              "type": "string",
+              "minLength": 1,
+              "default": "alloy"
+            },
+            "vad": {
+              "type": "string",
+              "enum": [
+                "server",
+                "none"
+              ],
+              "default": "server"
+            },
+            "bargeInTriggerFrames": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 20,
+              "default": 4
+            },
+            "bargeInWindowMs": {
+              "type": "integer",
+              "minimum": 60,
+              "maximum": 2000,
+              "default": 200
+            }
+          },
+          "required": [
+            "provider"
+          ],
+          "additionalProperties": false
+        },
+        "telephony": {
+          "type": "object",
+          "properties": {
+            "provider": {
+              "type": "string",
+              "enum": [
+                "twilio",
+                "livekit-sip",
+                "in-memory"
+              ]
+            }
+          },
+          "required": [
+            "provider"
+          ],
+          "additionalProperties": false
+        },
+        "tools": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "tool_config": {
+          "$ref": "#/definitions/cli/properties/tool_config"
+        },
+        "mcp_servers": {
+          "$ref": "#/definitions/cli/properties/mcp_servers"
+        },
+        "permissions": {
+          "$ref": "#/definitions/cli/properties/permissions"
+        },
+        "compaction": {
+          "$ref": "#/definitions/cli/properties/compaction"
+        },
+        "failure_taxonomy": {
+          "$ref": "#/definitions/cli/properties/failure_taxonomy"
+        },
+        "continuity": {
+          "$ref": "#/definitions/cli/properties/continuity"
+        }
+      },
+      "required": [
+        "name",
+        "target",
+        "agent",
+        "voice"
+      ],
+      "additionalProperties": false
+    },
+    "browser": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "$ref": "#/definitions/cli/properties/name"
+        },
+        "version": {
+          "$ref": "#/definitions/cli/properties/version"
+        },
+        "target": {
+          "type": "string",
+          "const": "browser"
+        },
+        "agent": {
+          "$ref": "#/definitions/research/properties/agent"
+        },
+        "driver": {
+          "type": "object",
+          "properties": {
+            "backend": {
+              "type": "string",
+              "enum": [
+                "host",
+                "chromium",
+                "remote"
+              ],
+              "default": "chromium"
+            },
+            "viewport": {
+              "type": "object",
+              "properties": {
+                "width": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "default": 1280
+                },
+                "height": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "default": 720
+                }
+              },
+              "additionalProperties": false,
+              "default": {
+                "width": 1280,
+                "height": 720
+              }
+            },
+            "startUrl": {
+              "type": "string",
+              "format": "uri"
+            }
+          },
+          "additionalProperties": false,
+          "default": {}
+        },
+        "groundingModel": {
+          "type": "string",
+          "minLength": 1
+        },
+        "tools": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "tool_config": {
+          "$ref": "#/definitions/cli/properties/tool_config"
+        },
+        "mcp_servers": {
+          "$ref": "#/definitions/cli/properties/mcp_servers"
+        },
+        "permissions": {
+          "$ref": "#/definitions/cli/properties/permissions"
+        },
+        "compaction": {
+          "$ref": "#/definitions/cli/properties/compaction"
+        },
+        "failure_taxonomy": {
+          "$ref": "#/definitions/cli/properties/failure_taxonomy"
+        },
+        "budget": {
+          "$ref": "#/definitions/cli/properties/budget"
+        },
+        "limits": {
+          "$ref": "#/definitions/cli/properties/limits"
+        },
+        "hooks": {
+          "$ref": "#/definitions/cli/properties/hooks"
+        },
+        "continuity": {
+          "$ref": "#/definitions/cli/properties/continuity"
+        }
+      },
+      "required": [
+        "name",
+        "target",
+        "agent"
+      ],
+      "additionalProperties": false
+    },
+    "eval": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "$ref": "#/definitions/cli/properties/name"
+        },
+        "version": {
+          "$ref": "#/definitions/cli/properties/version"
+        },
+        "target": {
+          "type": "string",
+          "const": "eval"
+        },
+        "agent": {
+          "type": "object",
+          "properties": {
+            "model": {
+              "type": "string",
+              "minLength": 1
+            },
+            "instructions": {
+              "type": "string",
+              "minLength": 1
+            },
+            "tools": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "required": [
+            "model",
+            "instructions"
+          ],
+          "additionalProperties": false
+        },
+        "dataset": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "$ref": "#/definitions/cli/properties/name"
+            },
+            "version": {
+              "type": "string",
+              "minLength": 1
+            },
+            "split": {
+              "type": "string",
+              "enum": [
+                "train",
+                "dev",
+                "test"
+              ],
+              "default": "dev"
+            }
+          },
+          "required": [
+            "name",
+            "version"
+          ],
+          "additionalProperties": false
+        },
+        "graders": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "$ref": "#/definitions/cli/properties/name"
+              },
+              "opts": {
+                "type": "object",
+                "additionalProperties": {}
+              }
+            },
+            "required": [
+              "name"
+            ],
+            "additionalProperties": false
+          },
+          "minItems": 1
+        },
+        "concurrency": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 4
+        },
+        "seed": {
+          "type": "integer"
+        },
+        "failure_taxonomy": {
+          "$ref": "#/definitions/cli/properties/failure_taxonomy"
+        }
+      },
+      "required": [
+        "name",
+        "target",
+        "agent",
+        "dataset",
+        "graders"
+      ],
+      "additionalProperties": false
+    },
+    "onchain": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "$ref": "#/definitions/cli/properties/name"
+        },
+        "version": {
+          "$ref": "#/definitions/cli/properties/version"
+        },
+        "target": {
+          "type": "string",
+          "const": "onchain"
+        },
+        "agent": {
+          "type": "object",
+          "properties": {
+            "model": {
+              "type": "string",
+              "minLength": 1
+            },
+            "instructions": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "model",
+            "instructions"
+          ],
+          "additionalProperties": false
+        },
+        "chains": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/cli/properties/chains/items"
+          },
+          "minItems": 1
+        },
+        "wallets": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/cli/properties/wallets/items"
+          },
+          "default": []
+        },
+        "contracts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/cli/properties/contracts/items"
+          },
+          "default": []
+        },
+        "transaction_policy": {
+          "$ref": "#/definitions/cli/properties/transaction_policy",
+          "default": {
+            "defaultWriteApproval": "required",
+            "allowedContracts": [],
+            "simulationRequired": true
+          }
+        },
+        "triggers": {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "event"
+                  },
+                  "chainId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "contract": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "event": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "filter": {
+                    "type": "object",
+                    "additionalProperties": {}
+                  }
+                },
+                "required": [
+                  "kind",
+                  "chainId",
+                  "contract",
+                  "event"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "block"
+                  },
+                  "chainId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "scanIntervalMs": {
+                    "type": "integer",
+                    "minimum": 1000,
+                    "maximum": 3600000
+                  }
+                },
+                "required": [
+                  "kind",
+                  "chainId",
+                  "scanIntervalMs"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "address"
+                  },
+                  "chainId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "address": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "direction": {
+                    "type": "string",
+                    "enum": [
+                      "in",
+                      "out",
+                      "both"
+                    ],
+                    "default": "both"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "chainId",
+                  "address"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          },
+          "minItems": 1
+        },
+        "idempotencyWindowMs": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "default": 60000
+        },
+        "tools": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "tool_config": {
+          "$ref": "#/definitions/cli/properties/tool_config"
+        },
+        "mcp_servers": {
+          "$ref": "#/definitions/cli/properties/mcp_servers"
+        },
+        "permissions": {
+          "$ref": "#/definitions/cli/properties/permissions"
+        },
+        "compaction": {
+          "$ref": "#/definitions/cli/properties/compaction"
+        },
+        "failure_taxonomy": {
+          "$ref": "#/definitions/cli/properties/failure_taxonomy"
+        }
+      },
+      "required": [
+        "name",
+        "target",
+        "agent",
+        "chains",
+        "triggers"
+      ],
+      "additionalProperties": false
+    },
+    "onchain-game": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "$ref": "#/definitions/cli/properties/name"
+        },
+        "version": {
+          "$ref": "#/definitions/cli/properties/version"
+        },
+        "target": {
+          "type": "string",
+          "const": "onchain-game"
+        },
+        "agent": {
+          "type": "object",
+          "properties": {
+            "model": {
+              "type": "string",
+              "minLength": 1
+            },
+            "instructions": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "model",
+            "instructions"
+          ],
+          "additionalProperties": false
+        },
+        "chain": {
+          "$ref": "#/definitions/cli/properties/chains/items"
+        },
+        "wallet": {
+          "$ref": "#/definitions/cli/properties/wallets/items"
+        },
+        "game": {
+          "type": "object",
+          "properties": {
+            "contract": {
+              "$ref": "#/definitions/cli/properties/contracts/items"
+            },
+            "stateReader": {
+              "type": "string",
+              "minLength": 1
+            },
+            "actionsContract": {
+              "type": "string",
+              "minLength": 1
+            },
+            "turnSemantics": {
+              "type": "string",
+              "enum": [
+                "turn-based",
+                "real-time",
+                "async"
+              ],
+              "default": "turn-based"
+            },
+            "moveTimeoutMs": {
+              "type": "integer",
+              "exclusiveMinimum": 0
+            },
+            "objective": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "contract",
+            "stateReader"
+          ],
+          "additionalProperties": false
+        },
+        "transaction_policy": {
+          "$ref": "#/definitions/cli/properties/transaction_policy",
+          "default": {
+            "defaultWriteApproval": "required",
+            "allowedContracts": [],
+            "simulationRequired": true
+          }
+        },
+        "tools": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "tool_config": {
+          "$ref": "#/definitions/cli/properties/tool_config"
+        },
+        "mcp_servers": {
+          "$ref": "#/definitions/cli/properties/mcp_servers"
+        },
+        "permissions": {
+          "$ref": "#/definitions/cli/properties/permissions"
+        },
+        "compaction": {
+          "$ref": "#/definitions/cli/properties/compaction"
+        },
+        "failure_taxonomy": {
+          "$ref": "#/definitions/cli/properties/failure_taxonomy"
+        }
+      },
+      "required": [
+        "name",
+        "target",
+        "agent",
+        "chain",
+        "wallet",
+        "game"
+      ],
+      "additionalProperties": false
+    },
+    "CrewhausSpec": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/cli"
+        },
+        {
+          "$ref": "#/definitions/workflow"
+        },
+        {
+          "$ref": "#/definitions/channel"
+        },
+        {
+          "$ref": "#/definitions/graph"
+        },
+        {
+          "$ref": "#/definitions/managed"
+        },
+        {
+          "$ref": "#/definitions/pipeline"
+        },
+        {
+          "$ref": "#/definitions/crew"
+        },
+        {
+          "$ref": "#/definitions/research"
+        },
+        {
+          "$ref": "#/definitions/batch"
+        },
+        {
+          "$ref": "#/definitions/voice"
+        },
+        {
+          "$ref": "#/definitions/browser"
+        },
+        {
+          "$ref": "#/definitions/eval"
+        },
+        {
+          "$ref": "#/definitions/onchain"
+        },
+        {
+          "$ref": "#/definitions/onchain-game"
+        }
+      ]
+    }
+  },
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}

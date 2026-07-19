@@ -63,10 +63,74 @@ export function renderStudioHtml(opts: RenderOptions = {}): string {
     .yaml-preview { background: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 4px; padding: 12px; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 13px; white-space: pre; overflow-x: auto; }
     button.primary { background: #1d3a8a; color: white; border: 0; border-radius: 4px; padding: 8px 16px; font: inherit; cursor: pointer; }
     button.primary:disabled { background: #9ca3af; cursor: not-allowed; }
+    button.danger { background: #fff; color: #b91c1c; border: 1px solid #b91c1c; border-radius: 4px; padding: 8px 16px; font: inherit; cursor: pointer; }
     .case-row { display: flex; gap: 8px; margin-top: 8px; }
     .field .case-row input[type="text"] { width: auto; max-width: none; flex: 1; }
     .field .case-row input[type="text"][data-case-field="id"] { flex: 0 0 120px; }
     .case-row button { border: 1px solid #ddd; background: #fff; border-radius: 4px; cursor: pointer; padding: 0 10px; }
+    .connectors-panel { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; margin-top: 12px; }
+    .connectors-panel h2 { grid-column: 1 / -1; margin: 0; }
+    .connectors-panel .dashboard-empty { grid-column: 1 / -1; color: #6b7280; margin: 0; }
+    .connector-card { border: 1px solid #ddd; border-radius: 6px; padding: 12px; background: #fff; }
+    .connector-card strong { color: #1d3a8a; }
+    .connector-transport { color: #6b7280; font-family: ui-monospace, monospace; font-size: 12px; margin-left: 6px; }
+    .connector-card p { margin: 8px 0; color: #374151; font-size: 14px; }
+    .connector-card code { display: block; background: #f3f4f6; border-radius: 4px; padding: 6px 8px; font-size: 12px; overflow-x: auto; }
+    .connector-env { color: #6b7280; font-size: 12px; margin-top: 6px; }
+    .connector-add { margin-top: 10px; background: #1d3a8a; color: white; border: 0; border-radius: 4px; padding: 6px 12px; font: inherit; cursor: pointer; }
+    /* structured spec editor (src/client/spec-editor.ts) */
+    .eval-runs-box { margin: 8px 0 24px; padding: 12px 0 4px; border-bottom: 1px solid #e5e7eb; }
+    .eval-runs-box h3 { margin: 0 0 8px; font-size: 15px; color: #374151; }
+    .eval-runs-box .dashboard-empty { color: #6b7280; font-size: 13px; margin: 0; }
+    table.dashboard { border-collapse: collapse; width: 100%; font-size: 13px; }
+    table.dashboard th, table.dashboard td { text-align: left; padding: 5px 10px; border-bottom: 1px solid #eef2f7; }
+    table.dashboard th { color: #6b7280; font-weight: 600; }
+    .draft-note { background: #fef3c7; border: 1px solid #fde68a; border-radius: 4px; padding: 8px 12px; margin: 10px 0; font-size: 13px; color: #92400e; display: flex; align-items: center; gap: 8px; }
+    .draft-note button { background: #fff; border: 1px solid #d1d5db; border-radius: 4px; padding: 3px 10px; cursor: pointer; font: inherit; }
+    .editor-modes { display: flex; gap: 6px; margin: 12px 0; }
+    .editor-modes button { background: #f3f4f6; border: 1px solid #d1d5db; border-radius: 4px; padding: 6px 14px; cursor: pointer; font: inherit; }
+    .editor-modes button.active { background: #1d3a8a; color: white; border-color: #1d3a8a; }
+    .sf-toolbar { display: flex; gap: 4px; margin-bottom: 10px; }
+    .sf-btn { border: 1px solid #d1d5db; background: #fff; border-radius: 4px; min-width: 32px; padding: 4px 8px; cursor: pointer; font: inherit; }
+    .sf-btn:disabled { opacity: 0.4; cursor: default; }
+    .sf-btn.add { color: #1d3a8a; border-color: #1d3a8a; }
+    .sf-loop { background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 6px; padding: 12px; margin-bottom: 16px; }
+    .sf-loop-head { font-weight: 600; color: #1d3a8a; margin-bottom: 8px; }
+    .sf-loop-strip { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0; }
+    .sf-seg { font-family: ui-monospace, monospace; font-size: 11px; padding: 2px 7px; border-radius: 10px; background: #e5e7eb; color: #6b7280; }
+    .sf-seg.on { background: #1d3a8a; color: white; }
+    .sf-node { margin: 8px 0; padding: 6px 0; border-top: 1px solid #eef2f7; }
+    .sf-node-kind { color: #6b7280; font-size: 12px; }
+    .sf-hitl { color: #b45309; font-size: 12px; }
+    .sf-edges { font-family: ui-monospace, monospace; font-size: 12px; color: #6b7280; margin-top: 8px; }
+    .sf-warn { color: #b45309; font-size: 12px; margin-top: 6px; }
+    .sf-block-title { margin: 18px 0 6px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.04em; color: #374151; }
+    .sf-block { border-left: 2px solid #eef2f7; padding-left: 12px; }
+    .sf-block-absent { color: #6b7280; display: flex; align-items: center; gap: 10px; }
+    .sf-block-absent .sf-block-title { margin: 8px 0; }
+    .sf-field { margin: 10px 0; }
+    .sf-field > label { display: block; font-weight: 600; margin-bottom: 4px; font-size: 13px; }
+    .sf-field input[type="text"], .sf-field input[type="number"], .sf-field select, .sf-field textarea { width: 100%; max-width: 460px; padding: 6px 8px; border: 1px solid #d1d5db; border-radius: 4px; font: inherit; box-sizing: border-box; }
+    .sf-field textarea { font-family: ui-monospace, monospace; font-size: 13px; }
+    .sf-check { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 13px; }
+    .sf-hint { color: #6b7280; font-size: 12px; margin-top: 3px; }
+    .sf-badge { display: inline-block; font-size: 11px; color: #b45309; background: #fef3c7; border-radius: 4px; padding: 1px 6px; margin-left: 6px; }
+    .sf-error { color: #b91c1c; font-size: 12px; margin-top: 3px; }
+    /* interactive loop canvas */
+    .sf-canvas-actions { margin: 4px 0 10px; }
+    .sf-node { margin: 8px 0; padding: 8px 10px; border: 1px solid #e5e7eb; border-radius: 6px; background: #fff; }
+    .sf-node-head { display: flex; align-items: center; gap: 6px; }
+    .sf-node-head strong { color: #111827; }
+    .sf-icon { border: 1px solid #d1d5db; background: #fff; border-radius: 4px; width: 26px; height: 26px; line-height: 1; cursor: pointer; padding: 0; }
+    .sf-icon.danger { color: #b91c1c; border-color: #fca5a5; }
+    .sf-node-head .sf-icon { margin-left: auto; }
+    .sf-node-head .sf-icon + .sf-icon { margin-left: 0; }
+    .sf-edges-box { margin-top: 12px; padding-top: 8px; border-top: 1px dashed #e5e7eb; }
+    .sf-edges-head { font-weight: 600; color: #374151; font-size: 13px; margin-bottom: 6px; }
+    .sf-edge { display: flex; align-items: center; gap: 8px; font-family: ui-monospace, monospace; font-size: 12px; color: #374151; padding: 3px 0; }
+    .sf-edge .sf-icon { margin-left: auto; width: 22px; height: 22px; }
+    .sf-edge-add { display: flex; align-items: center; gap: 6px; margin-top: 8px; }
+    .sf-edge-sel { padding: 4px 6px; border: 1px solid #d1d5db; border-radius: 4px; font: inherit; }
   </style>
 </head>
 <body>
@@ -76,6 +140,7 @@ export function renderStudioHtml(opts: RenderOptions = {}): string {
     <button id="tab-wizard">Wizard</button>
     <button id="tab-graders">Graders</button>
     <button id="tab-datasets">Datasets</button>
+    <button id="tab-connectors">Connectors</button>
     <button id="tab-plugins">Plugins</button>
   </nav>
   <main>
@@ -83,8 +148,10 @@ export function renderStudioHtml(opts: RenderOptions = {}): string {
     <section id="view-wizard" hidden></section>
     <section id="view-graders" hidden></section>
     <section id="view-datasets" hidden></section>
+    <section id="view-connectors" hidden></section>
     <section id="view-plugins" hidden></section>
   </main>
+  <script type="module" src="/spec-editor.js"></script>
   <script type="module">
 ${getStudioJs()}
   </script>
@@ -100,7 +167,11 @@ ${getStudioJs()}
 export function getStudioJs(): string {
   return `
 const $ = (sel) => document.querySelector(sel);
-const tabs = ['specs', 'wizard', 'graders', 'datasets', 'plugins'];
+const tabs = ['specs', 'wizard', 'graders', 'datasets', 'connectors', 'plugins'];
+// Injected server-side: the curated MCP catalog (for resolving a connector's
+// config on Add) and the pre-rendered connectors panel HTML.
+const CURATED_MCP = ${JSON.stringify(CURATED_MCP_SERVERS)};
+const MCP_PANEL_HTML = ${JSON.stringify(renderMcpConnectorsPanel({}))};
 
 function activate(name) {
   for (const t of tabs) {
@@ -114,6 +185,7 @@ function activate(name) {
   if (name === 'wizard') renderWizard();
   if (name === 'graders') renderGraders();
   if (name === 'datasets') renderDatasets();
+  if (name === 'connectors') renderConnectors();
   if (name === 'plugins') renderPlugins();
 }
 
@@ -125,11 +197,29 @@ for (const t of tabs) {
 async function renderSpecs() {
   const view = $('#view-specs');
   if (!view) return;
-  view.innerHTML = 'Loading…';
+  view.textContent = 'Loading…';
   try {
     const { specs } = await fetch('/api/specs').then((r) => r.json());
+    view.textContent = '';
+    // New-from-template gallery (browse scaffold-templates, preview, create).
+    const newBtn = document.createElement('button');
+    newBtn.className = 'primary';
+    newBtn.textContent = '+ New from template';
+    const gallery = document.createElement('div');
+    gallery.className = 'kind-cards';
+    gallery.style.display = 'none';
+    newBtn.addEventListener('click', async () => {
+      if (gallery.style.display !== 'none') { gallery.style.display = 'none'; return; }
+      gallery.style.display = '';
+      if (gallery.childElementCount === 0) await fillTemplateGallery(gallery);
+    });
+    view.appendChild(newBtn);
+    view.appendChild(gallery);
+
     if (specs.length === 0) {
-      view.innerHTML = '<p>No specs yet. Use the Wizard tab to create one.</p>';
+      const p = document.createElement('p');
+      p.textContent = 'No specs yet — create one from a template above or the Wizard tab.';
+      view.appendChild(p);
       return;
     }
     const ul = document.createElement('ul');
@@ -140,9 +230,9 @@ async function renderSpecs() {
       li.addEventListener('click', () => openSpec(s.name));
       ul.appendChild(li);
     }
-    view.replaceChildren(ul);
+    view.appendChild(ul);
   } catch (err) {
-    view.innerHTML = 'Error: ' + err;
+    view.textContent = 'Error: ' + err;
   }
 }
 
@@ -150,22 +240,231 @@ async function openSpec(name) {
   const view = $('#view-specs');
   if (!view) return;
   const { yaml } = await fetch('/api/specs/' + name).then((r) => r.json());
-  view.innerHTML = '<h2>' + name + '</h2>';
+  view.textContent = '';
+  const h = document.createElement('h2');
+  h.textContent = name;
+  view.appendChild(h);
+
+  // Draft autosave: unsaved edits persist to localStorage per spec so a reload
+  // never loses in-progress work. A stored draft that differs from the saved
+  // file is offered for restore.
+  const draftKey = 'studio-draft:' + name;
+  const draft = localStorage.getItem(draftKey);
+  const startYaml = draft !== null && draft !== yaml ? draft : yaml;
+  function autosave(y) {
+    if (y === yaml) localStorage.removeItem(draftKey);
+    else localStorage.setItem(draftKey, y);
+  }
+  if (draft !== null && draft !== yaml) {
+    const note = document.createElement('div');
+    note.className = 'draft-note';
+    const span = document.createElement('span');
+    span.textContent = 'Restored unsaved draft. ';
+    const revert = document.createElement('button');
+    revert.textContent = 'Revert to saved';
+    revert.addEventListener('click', () => {
+      localStorage.removeItem(draftKey);
+      openSpec(name);
+    });
+    note.appendChild(span);
+    note.appendChild(revert);
+    view.appendChild(note);
+  }
+
+  // YAML textarea is the Save source of truth; the structured form (when the
+  // shared @crewhaus/spec-forms editor bundle loaded) edits the same YAML.
   const ta = document.createElement('textarea');
-  ta.value = yaml;
+  ta.value = startYaml;
+  ta.addEventListener('input', () => autosave(ta.value));
+  const formBox = document.createElement('div');
+  const hasEditor = !!(window.CrewhausSpecEditor && window.CrewhausSpecEditor.mountSpecEditor);
+  let editorHandle = null;
+  let formActive = false;
+
+  function currentYaml() {
+    return formActive && editorHandle ? editorHandle.getYaml() : ta.value;
+  }
+  function showForm() {
+    formActive = true;
+    formBtn.classList.add('active');
+    yamlBtn.classList.remove('active');
+    ta.style.display = 'none';
+    formBox.style.display = '';
+    if (editorHandle) editorHandle.destroy();
+    editorHandle = window.CrewhausSpecEditor.mountSpecEditor(formBox, {
+      yaml: ta.value,
+      onChange: (y) => { ta.value = y; autosave(y); },
+    });
+  }
+  function showYaml() {
+    if (formActive && editorHandle) ta.value = editorHandle.getYaml();
+    formActive = false;
+    yamlBtn.classList.add('active');
+    formBtn.classList.remove('active');
+    formBox.style.display = 'none';
+    ta.style.display = '';
+  }
+
+  const modes = document.createElement('div');
+  modes.className = 'editor-modes';
+  const formBtn = document.createElement('button');
+  formBtn.textContent = 'Form';
+  const yamlBtn = document.createElement('button');
+  yamlBtn.textContent = 'YAML';
+  if (hasEditor) {
+    formBtn.addEventListener('click', showForm);
+    yamlBtn.addEventListener('click', showYaml);
+    modes.appendChild(formBtn);
+    modes.appendChild(yamlBtn);
+    view.appendChild(modes);
+  }
+  view.appendChild(formBox);
   view.appendChild(ta);
+
   const save = document.createElement('button');
   save.textContent = 'Save';
   save.addEventListener('click', async () => {
+    const y = currentYaml();
     const r = await fetch('/api/specs/' + name, {
       method: 'PUT',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ yaml: ta.value }),
+      body: JSON.stringify({ yaml: y }),
     });
+    if (r.ok) localStorage.removeItem(draftKey);
     save.textContent = r.ok ? 'Saved.' : 'Save failed';
     setTimeout(() => (save.textContent = 'Save'), 1500);
   });
   view.appendChild(save);
+  const exportBtn = document.createElement('button');
+  exportBtn.textContent = 'Export';
+  exportBtn.style.marginLeft = '8px';
+  exportBtn.addEventListener('click', () => exportSpec(name, currentYaml()));
+  view.appendChild(exportBtn);
+  const del = document.createElement('button');
+  del.textContent = 'Delete';
+  del.className = 'danger';
+  del.style.marginLeft = '8px';
+  del.addEventListener('click', async () => {
+    if (!confirm('Delete spec "' + name + '"? This cannot be undone.')) return;
+    const r = await fetch('/api/specs/' + name, { method: 'DELETE' });
+    if (r.ok) {
+      renderSpecs();
+    } else {
+      del.textContent = 'Delete failed';
+      setTimeout(() => (del.textContent = 'Delete'), 1500);
+    }
+  });
+  view.appendChild(del);
+
+  // Default to the structured Form view when the editor is available.
+  if (hasEditor) showForm();
+  else showYaml();
+}
+
+// Eval run-history viewer — reads the runs the crewhaus eval CLI appended to
+// .crewhaus/evals/index.jsonl (GET /api/evals). Read-only, mirrors studio-pwa's
+// eval panel; renders a clean empty state when no runs exist yet.
+async function renderEvalRuns(box) {
+  box.replaceChildren(el('h3', { textContent: 'Eval run history' }));
+  let data;
+  try {
+    data = await fetch('/api/evals').then((r) => r.json());
+  } catch (err) {
+    box.appendChild(el('p', { textContent: 'Could not load eval runs: ' + err }));
+    return;
+  }
+  const runs = data.runs || [];
+  if (runs.length === 0) {
+    box.appendChild(el('p', { className: 'dashboard-empty', textContent: 'No eval runs yet — run crewhaus eval <spec> and its results appear here.' }));
+    return;
+  }
+  const table = el('table', { className: 'dashboard' });
+  const head = el('tr');
+  for (const hCol of ['spec', 'dataset', 'pass rate', 'mean score', 'samples', 'when']) {
+    head.appendChild(el('th', { textContent: hCol }));
+  }
+  table.appendChild(head);
+  for (const r of runs.slice(-20).reverse()) {
+    const tr = el('tr');
+    const cells = [
+      r.specName || r.spec || '—',
+      r.datasetName || '—',
+      typeof r.passRate === 'number' ? (r.passRate * 100).toFixed(1) + '%' : '—',
+      typeof r.meanScore === 'number' ? r.meanScore.toFixed(2) : '—',
+      typeof r.sampleCount === 'number' ? String(r.sampleCount) : '—',
+      typeof r.ts === 'number' ? new Date(r.ts).toLocaleString() : '—',
+    ];
+    for (const c of cells) tr.appendChild(el('td', { textContent: c }));
+    table.appendChild(tr);
+  }
+  box.appendChild(table);
+}
+
+async function fillTemplateGallery(gallery) {
+  try {
+    const { templates } = await fetch('/api/templates').then((r) => r.json());
+    for (const t of templates) {
+      const card = document.createElement('button');
+      card.type = 'button';
+      card.className = 'kind-card';
+      const strong = document.createElement('strong');
+      strong.textContent = t.title || t.id;
+      const desc = document.createElement('span');
+      desc.className = 'desc';
+      desc.textContent = (t.target ? '[' + t.target + '] ' : '') + (t.description || '');
+      card.appendChild(strong);
+      card.appendChild(desc);
+      card.addEventListener('click', () => createFromTemplate(t.id));
+      gallery.appendChild(card);
+    }
+  } catch (err) {
+    const p = document.createElement('p');
+    p.textContent = 'Could not load templates: ' + err;
+    gallery.appendChild(p);
+  }
+}
+async function createFromTemplate(id) {
+  const tpl = await fetch('/api/templates/' + id).then((r) => r.json());
+  const name = prompt('Name for the new spec (kebab-case):', id);
+  if (!name) return;
+  const yaml = (tpl.yaml || '').replace(/^name:\\s+.+$/m, 'name: ' + name);
+  const r = await fetch('/api/specs', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ name: name, yaml: yaml }),
+  });
+  if (r.ok) openSpec(name);
+  else {
+    const b = await r.json().catch(() => ({}));
+    alert('Create failed: ' + (b.error || r.status));
+  }
+}
+function escHtml(s) {
+  return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+}
+function downloadText(filename, text, type) {
+  const blob = new Blob([text], { type: type });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+// Export the spec as standalone Markdown + HTML artifacts (downloads).
+function exportSpec(name, yaml) {
+  // Build the code fence from char codes — a literal triple-backtick here
+  // would close the getStudioJs template literal this code is embedded in.
+  const fence = String.fromCharCode(96, 96, 96);
+  const md = '# ' + name + '\\n\\n' + fence + 'yaml\\n' + yaml + '\\n' + fence + '\\n';
+  downloadText(name + '.md', md, 'text/markdown');
+  const html =
+    '<!doctype html><html><head><meta charset="utf-8"><title>' + escHtml(name) +
+    '</title><style>body{font-family:system-ui,sans-serif;max-width:760px;margin:40px auto;padding:0 16px}pre{background:#f3f4f6;border:1px solid #e5e7eb;border-radius:6px;padding:16px;overflow-x:auto;font-size:13px}</style></head><body><h1>' +
+    escHtml(name) + '</h1><pre>' + escHtml(yaml) + '</pre></body></html>';
+  downloadText(name + '.html', html, 'text/html');
 }
 
 async function renderWizard() {
@@ -580,6 +879,9 @@ async function renderDatasets() {
   datasetState = null;
   const intro = el('p', { textContent: 'Pick where the cases come from, give the dataset a coordinate (name / version / split), and watch the YAML + JSONL previews update. Save the cases to the workspace and point an eval spec at them — or create a brand-new eval spec around the dataset.' });
   view.replaceChildren(el('h2', { textContent: 'New Dataset' }), intro);
+  const evalRunsBox = el('div', { className: 'eval-runs-box' });
+  view.appendChild(evalRunsBox);
+  renderEvalRuns(evalRunsBox);
   const { nextQuestion: sourceQ } = await fetch('/api/dataset-wizard/start', { method: 'POST' }).then((r) => r.json());
 
   const existing = el('div', { id: 'dataset-list' });
@@ -992,6 +1294,85 @@ async function renderDatasetAttach(attach) {
   pane.appendChild(create);
   pane.appendChild(createStatus);
   attach.appendChild(pane);
+}
+
+// ---- Connectors tab -------------------------------------------------------
+// Wires the curated MCP catalog (renderMcpConnectorsPanel + CURATED_MCP_SERVERS,
+// both injected above) into a working tab: pick a target eval/agent spec, then
+// '+ Add' POSTs the resolved connector config to /api/specs/:name/mcp, which
+// inserts it into mcp_servers: (comment/order-preserving, strict-parse gated).
+async function renderConnectors() {
+  const view = $('#view-connectors');
+  if (!view) return;
+  view.textContent = 'Loading…';
+  let specs = [];
+  try {
+    specs = (await fetch('/api/specs').then((r) => r.json())).specs || [];
+  } catch (err) {
+    view.textContent = 'Error: ' + err;
+    return;
+  }
+  view.textContent = '';
+  const bar = document.createElement('div');
+  bar.className = 'pane';
+  const lbl = document.createElement('strong');
+  lbl.textContent = 'Target spec: ';
+  const sel = document.createElement('select');
+  const opt0 = document.createElement('option');
+  opt0.value = '';
+  opt0.textContent = specs.length ? 'Choose a spec…' : 'No specs yet — create one first';
+  sel.appendChild(opt0);
+  for (const s of specs) {
+    const o = document.createElement('option');
+    o.value = s.name;
+    o.textContent = s.name + ' (' + s.target + ')';
+    sel.appendChild(o);
+  }
+  bar.appendChild(lbl);
+  bar.appendChild(sel);
+  view.appendChild(bar);
+
+  // Parse the server-rendered panel HTML (no innerHTML on our side).
+  const doc = new DOMParser().parseFromString(MCP_PANEL_HTML, 'text/html');
+  const panel = doc.body.firstElementChild;
+  if (panel) view.appendChild(panel);
+
+  view.addEventListener('click', async (e) => {
+    const btn = e.target && e.target.closest ? e.target.closest('.connector-add') : null;
+    if (!btn) return;
+    const id = btn.getAttribute('data-id');
+    const conn = CURATED_MCP.find((c) => c.id === id);
+    if (!conn) return;
+    if (!sel.value) {
+      btn.textContent = 'Pick a spec ↑';
+      setTimeout(() => (btn.textContent = '+ Add'), 1500);
+      return;
+    }
+    const config = { transport: conn.transport };
+    if (conn.transport === 'stdio' && conn.stdio) {
+      config.command = conn.stdio.command;
+      if (conn.stdio.args) config.args = conn.stdio.args;
+    } else if (conn.transport === 'sse' && conn.sse) {
+      config.url = conn.sse.url;
+    }
+    if (conn.envRefs && conn.envRefs.length) {
+      config.env = {};
+      for (const e2 of conn.envRefs) config.env[e2] = '$' + e2;
+    }
+    btn.textContent = 'Adding…';
+    const r = await fetch('/api/specs/' + sel.value + '/mcp', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ serverName: id, config: config }),
+    });
+    if (r.ok) {
+      btn.textContent = 'Added ✓';
+    } else {
+      const body = await r.json().catch(() => ({}));
+      btn.textContent = body.detail || body.error || 'Failed';
+    }
+    setTimeout(() => (btn.textContent = '+ Add'), 1800);
+  });
 }
 
 async function renderPlugins() {
