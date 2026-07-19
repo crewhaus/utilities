@@ -131,6 +131,14 @@ export function renderStudioHtml(opts: RenderOptions = {}): string {
     .sf-edge .sf-icon { margin-left: auto; width: 22px; height: 22px; }
     .sf-edge-add { display: flex; align-items: center; gap: 6px; margin-top: 8px; }
     .sf-edge-sel { padding: 4px 6px; border: 1px solid #d1d5db; border-radius: 4px; font: inherit; }
+    /* run & watch overlay */
+    .sf-run-box { margin-top: 12px; padding: 12px; border: 1px solid #e5e7eb; border-radius: 8px; background: #fafafa; }
+    .sf-run-bar { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
+    .sf-run-bar input { flex: 1; padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 4px; font: inherit; }
+    .sf-run-status { font-family: ui-monospace, monospace; font-size: 12px; color: #6b7280; margin-bottom: 8px; }
+    .sf-run-stats { font-family: ui-monospace, monospace; font-size: 13px; color: #374151; margin: 8px 0; }
+    .sf-run-transcript { background: #fff; border: 1px solid #e5e7eb; border-radius: 6px; padding: 10px; font-family: ui-monospace, monospace; font-size: 13px; white-space: pre-wrap; min-height: 40px; margin: 0; }
+    .sf-node.active { border-color: #1d3a8a; box-shadow: 0 0 0 1px #1d3a8a; }
   </style>
 </head>
 <body>
@@ -355,6 +363,30 @@ async function openSpec(name) {
     }
   });
   view.appendChild(del);
+
+  // Run & watch — live loop overlay over the run SSE (shared run-model reducer).
+  if (hasEditor && window.CrewhausSpecEditor.mountRunOverlay) {
+    const runToggle = document.createElement('button');
+    runToggle.className = 'secondary';
+    runToggle.textContent = '▶ Run & watch';
+    runToggle.style.marginLeft = '8px';
+    const runBox = document.createElement('div');
+    runBox.className = 'sf-run-box';
+    runBox.style.display = 'none';
+    let runHandle = null;
+    runToggle.addEventListener('click', () => {
+      if (runBox.style.display === 'none') {
+        runBox.style.display = '';
+        if (!runHandle) {
+          runHandle = window.CrewhausSpecEditor.mountRunOverlay(runBox, { specName: name, getYaml: currentYaml });
+        }
+      } else {
+        runBox.style.display = 'none';
+      }
+    });
+    view.appendChild(runToggle);
+    view.appendChild(runBox);
+  }
 
   // Default to the structured Form view when the editor is available.
   if (hasEditor) showForm();

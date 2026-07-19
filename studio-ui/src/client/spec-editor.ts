@@ -25,6 +25,7 @@ import {
   detectTargetFromModel,
   FALLBACK_SCHEMA,
   fieldsForBlock,
+  createRunReducer,
   type FormField,
   type LoopCanvas,
   type LoopProjection,
@@ -34,8 +35,10 @@ import {
   projectLoop,
   removeNamed,
   renameNamed,
+  type RunState,
   serializeSpecModel,
   setPath,
+  type TraceStreamEvent,
 } from "@crewhaus/spec-forms";
 
 type Doc = ReturnType<typeof parseSpecModel>["doc"];
@@ -393,12 +396,162 @@ function cssEscape(s: string): string {
   return s.replace(/[^a-zA-Z0-9_-]/g, "\\$&");
 }
 
+// ===========================================================================
+// RUN & WATCH — POST /api/runs → SSE → run-model reducer → live loop overlay
+// ===========================================================================
+// The studio-server emits flat {kind:"trace", subkind:…} envelopes; adapt them
+// to run-model's nested TraceStreamEvent shape so the shared reducer folds them.
+function adaptRunEvent(raw: Record<string, unknown>): TraceStreamEvent | null {
+  const kind = raw["kind"];
+  if (kind === "run_start") return null; // reducer starts from initial
+  if (kind === "run_done" || kind === "run_finished") {
+    return { kind: "done", stopReason: String(raw["stopReason"] ?? "done"), text: "" };
+  }
+  if (kind === "error" || kind === "run_failed") {
+    return { kind: "error", message: String(raw["message"] ?? "run failed") };
+  }
+  if (kind === "text") return { kind: "text", text: String(raw["text"] ?? "") };
+  if (kind === "trace") {
+    const { kind: _k, subkind, ...rest } = raw;
+    return { kind: "trace", event: { kind: String(subkind ?? "unknown"), ...rest } };
+  }
+  return null;
+}
+
+export type RunOverlayHandle = { destroy(): void };
+
+export function mountRunOverlay(
+  container: HTMLElement,
+  opts: { specName: string; getYaml: () => string },
+): RunOverlayHandle {
+  const { initial, fold } = createRunReducer();
+  let run: RunState = initial;
+  let es: EventSource | null = null;
+
+  const promptInput = el("input", { type: "text", placeholder: "Message to send the harness…" }) as HTMLInputElement;
+  promptInput.value = "Hello";
+  const runBtn = el("button", { class: "sf-btn add", type: "button" }, "▶ Run");
+  const stopBtn = el("button", { class: "sf-btn", type: "button" }, "◼ Stop");
+  stopBtn.disabled = true;
+  const status = el("div", { class: "sf-run-status" });
+  const loopBox = el("div");
+  const stats = el("div", { class: "sf-run-stats" });
+  const transcript = el("pre", { class: "sf-run-transcript" });
+
+  container.replaceChildren(
+    el("div", { class: "sf-run-bar" }, promptInput, runBtn, stopBtn),
+    status,
+    loopBox,
+    stats,
+    transcript,
+  );
+
+  function renderOverlay() {
+    const parsed = parseSpecModel(opts.getYaml());
+    if (parsed.model !== undefined) loopBox.replaceChildren(renderRunLoop(projectLoop(parsed.model), run));
+    stats.textContent =
+      `$${(run.costMicros / 1e6).toFixed(4)}  ·  ${run.tokensIn}↓ ${run.tokensOut}↑ tok  ·  ` +
+      `${run.turns} turns  ·  ${run.toolCalls} tools  ·  ${run.errors} err`;
+    transcript.textContent = run.transcript || "(no output yet)";
+  }
+
+  function finish(label: string) {
+    if (!es && !runBtn.disabled) return; // already finished — guard double-fire
+    es?.close();
+    es = null;
+    runBtn.disabled = false;
+    stopBtn.disabled = true;
+    status.textContent = run.done ? `done${run.stopReason ? " — " + run.stopReason : ""}` : label;
+    renderOverlay();
+  }
+
+  async function start() {
+    run = initial;
+    runBtn.disabled = true;
+    stopBtn.disabled = false;
+    status.textContent = "starting…";
+    renderOverlay();
+    let runId: string;
+    try {
+      const r = await fetch("/api/runs", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ specName: opts.specName, prompt: promptInput.value }),
+      });
+      const body = (await r.json()) as { runId?: string; error?: string };
+      if (!r.ok || !body.runId) throw new Error(body.error ?? `HTTP ${r.status}`);
+      runId = body.runId;
+    } catch (err) {
+      status.textContent = "run failed: " + (err as Error).message;
+      runBtn.disabled = false;
+      stopBtn.disabled = true;
+      return;
+    }
+    status.textContent = `running (${runId})`;
+    es = new EventSource("/api/runs/" + runId + "/events");
+    es.onmessage = (e) => {
+      let raw: Record<string, unknown>;
+      try {
+        raw = JSON.parse(e.data);
+      } catch {
+        return;
+      }
+      const ev = adaptRunEvent(raw);
+      if (ev) {
+        run = fold(run, ev);
+        renderOverlay();
+      }
+    };
+    es.addEventListener("done", () => finish("complete"));
+    es.onerror = () => finish("connection closed");
+    stopBtn.onclick = async () => {
+      try {
+        await fetch("/api/runs/" + runId + "/cancel", { method: "POST" });
+      } catch {
+        /* best-effort */
+      }
+      finish("stopped");
+    };
+  }
+  runBtn.addEventListener("click", () => void start());
+  renderOverlay();
+
+  return {
+    destroy: () => {
+      es?.close();
+      container.replaceChildren();
+    },
+  };
+}
+
+function renderRunLoop(loop: LoopProjection, run: RunState): HTMLElement {
+  const box = el("div", { class: "sf-loop" });
+  box.append(el("div", { class: "sf-loop-head" }, `Live loop — ${loop.target}`));
+  if (loop.kind === "ring" && loop.ring) {
+    const strip = el("div", { class: "sf-loop-strip" });
+    for (const seg of loop.ring.segments) {
+      strip.append(el("span", { class: "sf-seg" + (seg.id === run.activeSegment ? " on" : "") }, seg.id));
+    }
+    box.append(strip);
+  } else if (loop.kind === "canvas" && loop.canvas) {
+    for (const n of loop.canvas.nodes) {
+      const row = el("div", { class: "sf-node" + (n.id === run.activeNode ? " active" : "") });
+      row.append(el("strong", {}, n.label), el("span", { class: "sf-node-kind" }, ` [${n.kind}]`));
+      box.append(row);
+    }
+  }
+  return box;
+}
+
 declare global {
   interface Window {
-    CrewhausSpecEditor?: { mountSpecEditor: typeof mountSpecEditor };
+    CrewhausSpecEditor?: {
+      mountSpecEditor: typeof mountSpecEditor;
+      mountRunOverlay: typeof mountRunOverlay;
+    };
   }
 }
 
 if (typeof window !== "undefined") {
-  window.CrewhausSpecEditor = { mountSpecEditor };
+  window.CrewhausSpecEditor = { mountSpecEditor, mountRunOverlay };
 }
