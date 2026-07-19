@@ -50,6 +50,13 @@
       "name": "@crewhaus/scaffold-templates",
       "version": "0.1.4",
     },
+    "spec-forms": {
+      "name": "@crewhaus/spec-forms",
+      "version": "0.1.5",
+      "dependencies": {
+        "yaml": "^2.6.0",
+      },
+    },
     "studio-plugin-sdk": {
       "name": "@crewhaus/studio-plugin-sdk",
       "version": "0.1.4",
@@ -78,6 +85,7 @@
       "name": "@crewhaus/studio-ui",
       "version": "0.1.4",
       "dependencies": {
+        "@crewhaus/spec-forms": "workspace:*",
         "@crewhaus/studio-server": "workspace:*",
       },
     },
@@ -154,6 +162,8 @@
     "@crewhaus/scaffold-templates": ["@crewhaus/scaffold-templates@workspace:scaffold-templates"],
 
     "@crewhaus/spec": ["@crewhaus/spec@0.1.2", "", { "dependencies": { "@crewhaus/errors": "0.1.2", "yaml": "^2.6.0", "zod": "^3.23.8" } }, "sha512-sJ2G7QlZ4VEi+L52FIYIe8yQ4jY1xabpprpzpakoa+mnGvUTVxtOJ25IOxWbNKMKj3OWiGWy21NK9hgiY8ZuRQ=="],
+
+    "@crewhaus/spec-forms": ["@crewhaus/spec-forms@workspace:spec-forms"],
 
     "@crewhaus/studio-plugin-sdk": ["@crewhaus/studio-plugin-sdk@workspace:studio-plugin-sdk"],
 

@@ -85,6 +85,11 @@ import { type StudioPluginDefinition, assertPluginPathsStaySandboxed } from "@cr
 import { type TemplateId, getTemplate, listTemplates } from "@crewhaus/scaffold-templates";
 import { parseSpec } from "@crewhaus/spec";
 import {
+  type McpServerConfig,
+  McpWriterError,
+  appendMcpServerToSpecYaml,
+} from "./mcp-writer";
+import {
   type WizardAnswer,
   type WizardState,
   answerWizard,
@@ -537,6 +542,36 @@ export async function startStudioServer(
       return jsonResponse({ name, graderName: result.grader.name, yaml: next });
     }
 
+    // POST /api/specs/:name/mcp — add a curated MCP connector to the spec's
+    // mcp_servers: map. The Connectors tab (studio-ui) and the PWA's /author
+    // Connectors tab both post a resolved { serverName, config }; the write is
+    // comment/order-preserving (mcp-writer) and gated by the strict parse.
+    const mmc = p.match(/^\/api\/specs\/([a-z0-9-]+)\/mcp$/i);
+    if (mmc && m === "POST") {
+      const name = mmc[1] as string;
+      if (!safeName(name)) return jsonResponse({ error: "unsafe name" }, 400);
+      const fp = specPath(name);
+      const body = (await req.json()) as {
+        serverName?: string;
+        config?: McpServerConfig;
+      };
+      if (!body.serverName || !body.config || typeof body.config !== "object") {
+        return jsonResponse({ error: "serverName and config required" }, 400);
+      }
+      if (!existsSync(fp)) return jsonResponse({ error: "spec not found" }, 404);
+      const yaml = readFileSync(fp, "utf8");
+      let next: string;
+      try {
+        next = appendMcpServerToSpecYaml(yaml, body.serverName, body.config);
+        parseSpec(next); // defensive: never persist a spec the parser rejects
+      } catch (err) {
+        const status = err instanceof McpWriterError ? 400 : 422;
+        return jsonResponse({ error: "mcp add failed", detail: (err as Error).message }, status);
+      }
+      writeFileSync(fp, next, { mode: 0o600 });
+      return jsonResponse({ name, serverName: body.serverName, yaml: next });
+    }
+
     // ---- dataset builder ---------------------------------------------------
     // Same replay-don't-trust envelope as the grader builder. A compiled
     // dataset is two artifacts written together: the spec's `dataset:`
@@ -611,6 +646,34 @@ export async function startStudioServer(
     }
     if (p === "/api/datasets" && m === "GET") {
       return jsonResponse({ datasets: listDatasets() });
+    }
+    // GET /api/evals — eval run history the `crewhaus eval` CLI appends to
+    // `.crewhaus/evals/index.jsonl` (one JSON run entry per line), read from the
+    // repo root (workspaceDir's parent) then the workspace itself. Absence is
+    // not an error — a workspace that never ran an eval simply has no runs, so
+    // the viewer renders a clean empty state (mirrors studio-pwa evals-view).
+    if (p === "/api/evals" && m === "GET") {
+      const candidates = [
+        join(dirname(workspaceDir), ".crewhaus", "evals", "index.jsonl"),
+        join(workspaceDir, ".crewhaus", "evals", "index.jsonl"),
+      ];
+      const runs: unknown[] = [];
+      let evalsPath: string | null = null;
+      for (const fp of candidates) {
+        if (!existsSync(fp)) continue;
+        evalsPath = fp;
+        for (const line of readFileSync(fp, "utf8").split("\n")) {
+          const trimmed = line.trim();
+          if (trimmed === "") continue;
+          try {
+            runs.push(JSON.parse(trimmed));
+          } catch {
+            // A torn line (crashed append) must not hide the rest of the log.
+          }
+        }
+        break;
+      }
+      return jsonResponse({ runs, evalsPath });
     }
     if (p === "/api/datasets" && m === "POST") {
       const body = (await req.json()) as { state?: DatasetBuilderState };

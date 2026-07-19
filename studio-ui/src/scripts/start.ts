@@ -10,12 +10,22 @@
  * talking to a live API.
  */
 import { startStudioServer } from "@crewhaus/studio-server";
+import { buildSpecEditorBundle } from "../build-editor";
 import { renderStudioHtml } from "../index";
 
 const port = Number(process.env["PORT"] ?? 4243);
 const backendPort = Number(process.env["STUDIO_PORT"] ?? 4242);
 
 const backend = await startStudioServer({ port: backendPort });
+
+// Bundle the structured editor (imports @crewhaus/spec-forms) once at boot.
+// If it fails, the SPA still runs — the Specs tab falls back to the textarea.
+let editorJs = "";
+try {
+  editorJs = await buildSpecEditorBundle();
+} catch (err) {
+  process.stderr.write(`[studio-ui] spec-editor bundle failed (form editing disabled): ${err}\n`);
+}
 
 const ui = Bun.serve({
   port,
@@ -24,6 +34,12 @@ const ui = Bun.serve({
     if (url.pathname === "/" || url.pathname === "/index.html") {
       return new Response(renderStudioHtml({}), {
         headers: { "content-type": "text/html; charset=utf-8" },
+      });
+    }
+    if (url.pathname === "/spec-editor.js") {
+      return new Response(editorJs, {
+        status: editorJs ? 200 : 503,
+        headers: { "content-type": "text/javascript; charset=utf-8" },
       });
     }
     // Proxy everything else (API, healthz, etc.) to the backend.
