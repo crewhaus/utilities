@@ -30,6 +30,16 @@
  *   POST /api/runs                      → { specName, prompt } → { runId }
  *   GET  /api/runs/:runId/events        → SSE stream of TraceEvent JSON lines
  *   GET  /api/graph-layout/:specName    → if target===graph, return layoutGraph result
+ *   GET  /api/evals                     → eval run history (index.jsonl)
+ *   GET  /api/evals/:runId              → E53 run detail: results.json + run.json + sample index
+ *   GET  /api/evals/:runId/:sampleId    → E53 sample drill-down: grades.json + meta.json +
+ *                                         transcript.jsonl + events.jsonl
+ *   POST /api/evals/:runId/:sampleId/annotate → E53 human verdict → a `needs_review` entry on
+ *                                         the .crewhaus/review queue (`crewhaus review list`
+ *                                         picks it up) + a FeedbackRecord carrying the verdict
+ *                                         and correction on .crewhaus/feedback/studio.jsonl.
+ *                                         The feedback record is NOT distillable today — see
+ *                                         ./eval-drilldown.ts's module docs for the join gap.
  *   GET  /api/plugins                   → list discovered plugins
  *
  * Auth: HS256 JWT bearer alongside the Section-20 gateway-server's
@@ -84,6 +94,13 @@ import {
 import { type StudioPluginDefinition, assertPluginPathsStaySandboxed } from "@crewhaus/studio-plugin-sdk";
 import { type TemplateId, getTemplate, listTemplates } from "@crewhaus/scaffold-templates";
 import { parseSpec } from "@crewhaus/spec";
+import {
+  EvalAnnotationError,
+  annotateSample,
+  readEvalRun,
+  readSampleDetail,
+  resolveEvalRoot,
+} from "./eval-drilldown";
 import {
   type McpServerConfig,
   McpWriterError,
@@ -674,6 +691,78 @@ export async function startStudioServer(
         break;
       }
       return jsonResponse({ runs, evalsPath });
+    }
+    // E53 — per-sample eval drill-down + the annotation write-path. The run
+    // table above answers "which runs happened"; these answer "which sample
+    // failed, which grader failed it, what did it say, and what does the
+    // reviewer think". The GET endpoints serve artifacts `crewhaus eval`
+    // already wrote; the annotation endpoint enqueues a `needs_review` item
+    // onto the Wave-3 review queue and records the verdict + correction on the
+    // append-only feedback sink (not distillable yet — see ./eval-drilldown.ts).
+    const evalDetail = p.match(/^\/api\/evals\/([^/]+)$/);
+    if (evalDetail && m === "GET") {
+      const evalRoot = resolveEvalRoot(workspaceDir);
+      if (evalRoot === undefined) {
+        return jsonResponse({ error: "no eval runs in this workspace" }, 404);
+      }
+      const detail = readEvalRun(evalRoot, decodeURIComponent(evalDetail[1] as string));
+      if (detail === undefined) return jsonResponse({ error: "run not found" }, 404);
+      return jsonResponse(detail);
+    }
+    const sampleDetail = p.match(/^\/api\/evals\/([^/]+)\/([^/]+)$/);
+    if (sampleDetail && m === "GET") {
+      const evalRoot = resolveEvalRoot(workspaceDir);
+      if (evalRoot === undefined) {
+        return jsonResponse({ error: "no eval runs in this workspace" }, 404);
+      }
+      const detail = readSampleDetail(
+        evalRoot,
+        decodeURIComponent(sampleDetail[1] as string),
+        decodeURIComponent(sampleDetail[2] as string),
+      );
+      if (detail === undefined) return jsonResponse({ error: "sample not found" }, 404);
+      return jsonResponse(detail);
+    }
+    const annotate = p.match(/^\/api\/evals\/([^/]+)\/([^/]+)\/annotate$/);
+    if (annotate && m === "POST") {
+      const evalRoot = resolveEvalRoot(workspaceDir);
+      if (evalRoot === undefined) {
+        return jsonResponse({ error: "no eval runs in this workspace" }, 404);
+      }
+      const body = (await req.json()) as {
+        verdict?: unknown;
+        comment?: unknown;
+        correction?: unknown;
+        rater?: unknown;
+        adjudicate?: unknown;
+      };
+      if (body.verdict !== "pass" && body.verdict !== "fail") {
+        return jsonResponse({ error: 'verdict must be "pass" or "fail"' }, 400);
+      }
+      try {
+        const result = annotateSample(
+          evalRoot,
+          {
+            runId: decodeURIComponent(annotate[1] as string),
+            sampleId: decodeURIComponent(annotate[2] as string),
+            verdict: body.verdict,
+            ...(typeof body.comment === "string" ? { comment: body.comment } : {}),
+            ...(typeof body.correction === "string" ? { correction: body.correction } : {}),
+            ...(typeof body.rater === "string" ? { rater: body.rater } : {}),
+            ...(body.adjudicate === true ? { adjudicate: true } : {}),
+          },
+          undefined,
+          // The only studio write above the spec sandbox, and a deliberate one:
+          // the harness root is where `crewhaus review list` looks. Bound it to
+          // exactly the two roots `resolveEvalRoot` probes so a future probe
+          // change cannot walk the sinks any further up the tree.
+          { allowedRoots: [dirname(workspaceDir), workspaceDir] },
+        );
+        return jsonResponse(result, 201);
+      } catch (err) {
+        if (err instanceof EvalAnnotationError) return jsonResponse({ error: err.message }, 400);
+        throw err;
+      }
     }
     if (p === "/api/datasets" && m === "POST") {
       const body = (await req.json()) as { state?: DatasetBuilderState };
