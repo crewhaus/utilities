@@ -85,6 +85,20 @@ export function renderStudioHtml(opts: RenderOptions = {}): string {
     table.dashboard { border-collapse: collapse; width: 100%; font-size: 13px; }
     table.dashboard th, table.dashboard td { text-align: left; padding: 5px 10px; border-bottom: 1px solid #eef2f7; }
     table.dashboard th { color: #6b7280; font-weight: 600; }
+    /* E53 — eval drill-down (run table → samples → one sample) + annotation */
+    .eval-drill { border: 1px solid #d1d5db; background: #fff; border-radius: 4px; padding: 2px 10px; cursor: pointer; font: inherit; font-size: 12px; }
+    .eval-drill:hover { border-color: #1d3a8a; color: #1d3a8a; }
+    .eval-back { border: 0; background: none; color: #1d3a8a; cursor: pointer; font: inherit; font-size: 13px; padding: 0; margin: 0 0 8px; }
+    .eval-back:hover { text-decoration: underline; }
+    .eval-transcript { background: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 4px; padding: 10px 12px; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 12px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; overflow-x: auto; max-height: 40vh; overflow-y: auto; margin: 6px 0 14px; }
+    .eval-annotate { border: 1px solid #e5e7eb; border-radius: 6px; padding: 12px; margin-top: 16px; background: #fff; }
+    .eval-annotate h4 { margin: 0 0 10px; font-size: 14px; color: #374151; }
+    .eval-annotate input[type="text"] { display: block; width: 100%; max-width: 520px; box-sizing: border-box; margin-bottom: 8px; padding: 6px 8px; border: 1px solid #d1d5db; border-radius: 4px; font: inherit; font-size: 13px; }
+    .eval-annotate-adjudicate { display: block; margin: 4px 0 12px; font-size: 13px; color: #374151; }
+    .eval-annotate-pass, .eval-annotate-fail { border-radius: 4px; padding: 6px 14px; font: inherit; cursor: pointer; margin-right: 8px; }
+    .eval-annotate-pass { background: #1d3a8a; color: #fff; border: 0; }
+    .eval-annotate-fail { background: #fff; color: #b91c1c; border: 1px solid #b91c1c; }
+    .eval-annotate-status { margin: 10px 0 0; font-size: 13px; color: #6b7280; word-break: break-word; }
     .draft-note { background: #fef3c7; border: 1px solid #fde68a; border-radius: 4px; padding: 8px 12px; margin: 10px 0; font-size: 13px; color: #92400e; display: flex; align-items: center; gap: 8px; }
     .draft-note button { background: #fff; border: 1px solid #d1d5db; border-radius: 4px; padding: 3px 10px; cursor: pointer; font: inherit; }
     .editor-modes { display: flex; gap: 6px; margin: 12px 0; }
@@ -394,8 +408,11 @@ async function openSpec(name) {
 }
 
 // Eval run-history viewer — reads the runs the crewhaus eval CLI appended to
-// .crewhaus/evals/index.jsonl (GET /api/evals). Read-only, mirrors studio-pwa's
-// eval panel; renders a clean empty state when no runs exist yet.
+// .crewhaus/evals/index.jsonl (GET /api/evals). E53 made it a DRILL-DOWN:
+// run list -> run -> samples -> per-grader verdicts + rationales + transcript,
+// with an annotation control that captures a human verdict (FeedbackRecord on
+// the .crewhaus/feedback sink distill reads, plus a needs_review item on the
+// review queue). Renders a clean empty state when no runs exist yet.
 async function renderEvalRuns(box) {
   box.replaceChildren(el('h3', { textContent: 'Eval run history' }));
   let data;
@@ -412,7 +429,7 @@ async function renderEvalRuns(box) {
   }
   const table = el('table', { className: 'dashboard' });
   const head = el('tr');
-  for (const hCol of ['spec', 'dataset', 'pass rate', 'mean score', 'samples', 'when']) {
+  for (const hCol of ['spec', 'dataset', 'pass rate', 'mean score', 'samples', 'when', '']) {
     head.appendChild(el('th', { textContent: hCol }));
   }
   table.appendChild(head);
@@ -427,9 +444,202 @@ async function renderEvalRuns(box) {
       typeof r.ts === 'number' ? new Date(r.ts).toLocaleString() : '—',
     ];
     for (const c of cells) tr.appendChild(el('td', { textContent: c }));
+    const actionCell = el('td');
+    if (typeof r.runId === 'string' && r.runId !== '') {
+      const open = el('button', { type: 'button', className: 'eval-drill', textContent: 'samples' });
+      open.addEventListener('click', () => renderEvalRunDetail(box, r.runId));
+      actionCell.appendChild(open);
+    }
+    tr.appendChild(actionCell);
     table.appendChild(tr);
   }
   box.appendChild(table);
+}
+
+// E53 — one run: aggregates + the per-sample index (GET /api/evals/:runId).
+async function renderEvalRunDetail(box, runId) {
+  box.replaceChildren(el('h3', { textContent: 'Eval run ' + runId }));
+  const back = el('button', { type: 'button', className: 'eval-back', textContent: '← all runs' });
+  back.addEventListener('click', () => renderEvalRuns(box));
+  box.appendChild(back);
+  let detail;
+  try {
+    const res = await fetch('/api/evals/' + encodeURIComponent(runId));
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    detail = await res.json();
+  } catch (err) {
+    box.appendChild(el('p', { textContent: 'Could not load run ' + runId + ': ' + err }));
+    return;
+  }
+  const agg = (detail.results && detail.results.aggregates) || {};
+  const summary = [];
+  if (typeof agg.passRate === 'number') summary.push('pass rate ' + (agg.passRate * 100).toFixed(1) + '%');
+  if (typeof agg.meanScore === 'number') summary.push('mean score ' + agg.meanScore.toFixed(2));
+  if (typeof agg.total === 'number') summary.push(agg.total + ' samples');
+  if (summary.length > 0) box.appendChild(el('p', { textContent: summary.join(' · ') }));
+
+  const samples = detail.samples || [];
+  if (samples.length === 0) {
+    box.appendChild(el('p', { className: 'dashboard-empty', textContent: 'This run persisted no per-sample artifacts.' }));
+    return;
+  }
+  const table = el('table', { className: 'dashboard' });
+  const head = el('tr');
+  for (const hCol of ['sample', 'verdict', 'score', 'note', '']) head.appendChild(el('th', { textContent: hCol }));
+  table.appendChild(head);
+  for (const s of samples) {
+    const tr = el('tr');
+    tr.appendChild(el('td', { textContent: s.sampleId }));
+    tr.appendChild(el('td', { textContent: s.passed === true ? 'pass' : s.passed === false ? 'FAIL' : '—' }));
+    tr.appendChild(el('td', { textContent: typeof s.score === 'number' ? s.score.toFixed(2) : '—' }));
+    tr.appendChild(el('td', { textContent: s.error ? 'error: ' + s.error : '' }));
+    const actionCell = el('td');
+    if (s.hasArtifacts) {
+      const open = el('button', { type: 'button', className: 'eval-drill', textContent: 'inspect' });
+      open.addEventListener('click', () => renderEvalSampleDetail(box, runId, s.sampleId));
+      actionCell.appendChild(open);
+    }
+    tr.appendChild(actionCell);
+    table.appendChild(tr);
+  }
+  box.appendChild(table);
+}
+
+// Pull the readable text out of one transcript/event-log line, whatever shape
+// the runtime wrote it in (string content, or an array of content blocks).
+function evalLineText(payload) {
+  if (!payload) return '';
+  if (typeof payload.content === 'string') return payload.content;
+  if (Array.isArray(payload.content)) {
+    const parts = [];
+    for (const blk of payload.content) {
+      if (blk && typeof blk.text === 'string') parts.push(blk.text);
+    }
+    return parts.join('\\n');
+  }
+  return '';
+}
+
+// E53 — one sample: per-grader verdicts + rationale, the run metadata, the
+// transcript, and the annotation control.
+async function renderEvalSampleDetail(box, runId, sampleId) {
+  box.replaceChildren(el('h3', { textContent: 'Sample ' + sampleId }));
+  const back = el('button', { type: 'button', className: 'eval-back', textContent: '← run ' + runId });
+  back.addEventListener('click', () => renderEvalRunDetail(box, runId));
+  box.appendChild(back);
+  let detail;
+  try {
+    const res = await fetch('/api/evals/' + encodeURIComponent(runId) + '/' + encodeURIComponent(sampleId));
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    detail = await res.json();
+  } catch (err) {
+    box.appendChild(el('p', { textContent: 'Could not load sample: ' + err }));
+    return;
+  }
+
+  const meta = detail.meta || {};
+  const metaBits = [];
+  if (meta.model) metaBits.push('model ' + meta.model);
+  if (typeof meta.latencyMs === 'number') metaBits.push(meta.latencyMs + ' ms');
+  if (typeof meta.turns === 'number') metaBits.push(meta.turns + ' turns');
+  if (meta.sessionId) metaBits.push('session ' + meta.sessionId);
+  if (metaBits.length > 0) box.appendChild(el('p', { textContent: metaBits.join(' · ') }));
+
+  const grades = detail.grades || {};
+  if (grades.overall) {
+    box.appendChild(el('p', { textContent: 'overall: ' + (grades.overall.passed ? 'pass' : 'FAIL') + ' (' + Number(grades.overall.score || 0).toFixed(2) + ')' }));
+  }
+  const perGrader = grades.perGrader || [];
+  if (perGrader.length > 0) {
+    box.appendChild(el('h4', { textContent: 'Grader verdicts' }));
+    const gTable = el('table', { className: 'dashboard' });
+    const gHead = el('tr');
+    for (const hCol of ['grader', 'verdict', 'score', 'rationale']) gHead.appendChild(el('th', { textContent: hCol }));
+    gTable.appendChild(gHead);
+    for (const g of perGrader) {
+      const tr = el('tr');
+      tr.appendChild(el('td', { textContent: g.name || g.grader || '—' }));
+      tr.appendChild(el('td', { textContent: g.passed === true ? 'pass' : g.passed === false ? 'FAIL' : '—' }));
+      tr.appendChild(el('td', { textContent: typeof g.score === 'number' ? g.score.toFixed(2) : '—' }));
+      tr.appendChild(el('td', { textContent: g.rationale || '' }));
+      gTable.appendChild(tr);
+    }
+    box.appendChild(gTable);
+  }
+
+  const transcript = detail.transcript || [];
+  if (transcript.length > 0) {
+    box.appendChild(el('h4', { textContent: 'Transcript' }));
+    const pre = el('pre', { className: 'eval-transcript' });
+    const lines = [];
+    for (const ev of transcript) {
+      const text = evalLineText(ev.payload);
+      if (text === '') continue;
+      lines.push('[' + (ev.kind || 'event') + '] ' + text);
+    }
+    pre.textContent = lines.join('\\n\\n');
+    box.appendChild(pre);
+  }
+  if (detail.truncated) {
+    box.appendChild(el('p', { textContent: 'Logs truncated — open the run directory for the full artifacts.' }));
+  }
+
+  box.appendChild(renderEvalAnnotateForm(runId, sampleId));
+}
+
+// E53 — the annotation write-path. Every field is optional except the verdict;
+// the POST enqueues a needs_review item onto the harness review queue and
+// records the verdict + correction on the append-only feedback sink. The
+// feedback record is NOT consumed by crewhaus distill today (an eval sample's
+// session log lives under the run dir, so distill's (sessionId, turnNumber)
+// join finds no turn) — see studio-server/src/eval-drilldown.ts.
+function renderEvalAnnotateForm(runId, sampleId) {
+  const wrap = el('div', { className: 'eval-annotate' });
+  wrap.appendChild(el('h4', { textContent: 'Annotate this sample' }));
+  const comment = el('input', { type: 'text', placeholder: 'why (optional)', className: 'eval-annotate-comment' });
+  const correction = el('input', { type: 'text', placeholder: 'better answer (optional — recorded on the review item for a human)', className: 'eval-annotate-correction' });
+  const rater = el('input', { type: 'text', placeholder: 'your name (optional)', className: 'eval-annotate-rater' });
+  const adjudicateLabel = el('label', { className: 'eval-annotate-adjudicate' });
+  const adjudicate = el('input', { type: 'checkbox' });
+  adjudicateLabel.appendChild(adjudicate);
+  adjudicateLabel.appendChild(document.createTextNode(' adjudication (marks this verdict as the one that settles rater disagreement)'));
+  const status = el('p', { className: 'eval-annotate-status' });
+  const send = async (verdict) => {
+    status.textContent = 'saving…';
+    try {
+      const res = await fetch('/api/evals/' + encodeURIComponent(runId) + '/' + encodeURIComponent(sampleId) + '/annotate', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          verdict: verdict,
+          comment: comment.value,
+          correction: correction.value,
+          rater: rater.value,
+          adjudicate: adjudicate.checked,
+        }),
+      });
+      const body = await res.json();
+      if (!res.ok) {
+        status.textContent = 'could not save: ' + (body.error || res.status);
+        return;
+      }
+      status.textContent = 'saved ' + verdict + ' → ' + body.feedbackPath + (body.reviewAdded ? ' (queued for review)' : ' (already queued)');
+    } catch (err) {
+      status.textContent = 'could not save: ' + err;
+    }
+  };
+  const pass = el('button', { type: 'button', className: 'eval-annotate-pass', textContent: 'mark pass' });
+  pass.addEventListener('click', () => send('pass'));
+  const fail = el('button', { type: 'button', className: 'eval-annotate-fail', textContent: 'mark fail' });
+  fail.addEventListener('click', () => send('fail'));
+  wrap.appendChild(comment);
+  wrap.appendChild(correction);
+  wrap.appendChild(rater);
+  wrap.appendChild(adjudicateLabel);
+  wrap.appendChild(pass);
+  wrap.appendChild(fail);
+  wrap.appendChild(status);
+  return wrap;
 }
 
 async function fillTemplateGallery(gallery) {
