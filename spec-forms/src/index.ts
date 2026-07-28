@@ -6,7 +6,7 @@
  * canvas), and drives an undo/redo + autosave edit history.
  *
  * Both Studios author specs through this one engine so they stay at feature
- * parity: the iPad PWA (crewhaus/studio-pwa `/builder`) and the local-machine
+ * parity: the iPad PWA (the Studio PWA's `/builder` page) and the local-machine
  * Studio (crewhaus/utilities `studio-ui`) each render their own DOM over the
  * same field/loop/state model.
  *

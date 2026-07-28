@@ -7,7 +7,7 @@ projects a spec into its agent-loop shape, and drives an undo/redo + autosave
 edit history.
 
 Both Studios author specs through this one engine so they stay at feature
-parity: the **iPad PWA** ([crewhaus/studio-pwa](https://github.com/crewhaus/studio-pwa) `/builder`)
+parity: the **iPad PWA** (the CrewHaus Studio PWA's `/builder` page)
 and the **local-machine Studio** ([studio-ui](../studio-ui/)) each render their
 own DOM over the same field / loop / state model.
 
@@ -56,7 +56,7 @@ bun test src   # form-model · loop-model · builder-state · spec-schema · spe
   only, so it unit-tests fully offline and runs in any JS runtime.
 - The bundled `spec-schema-snapshot.json` is a frozen 0.4 schema used as the
   offline fallback when the live compiler `/schema` endpoint is unreachable.
-- Sources are kept byte-identical to studio-pwa's `src/lib/*` so the two Studios
+- Sources are kept byte-identical to the Studio PWA's `src/lib/*` so the two Studios
   never drift; the PWA consumes this package once it is published to npm.
 
 > Inside this workspace, resolves as `workspace:*`. Depends only on `yaml`.
