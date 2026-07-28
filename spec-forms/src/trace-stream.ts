@@ -31,7 +31,7 @@
 // tests run fully offline. It touches NO DOM — pages own all rendering.
 
 /**
- * One chat turn — inlined here (rather than importing studio-pwa's ./chat) so
+ * One chat turn — inlined here (rather than importing the Studio PWA's ./chat) so
  * `@crewhaus/spec-forms` stays free of the chat-transport module; the shape is
  * structurally identical, so a consumer's own ChatMessage still fits.
  */
