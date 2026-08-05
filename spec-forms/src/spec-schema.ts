@@ -175,7 +175,8 @@ const BLOCK_DESCRIPTION_OVERLAY: Readonly<Record<string, string>> = {
   permissions: "Permission rules gating tool use (allow / deny / ask).",
   memory: "Persistent remember/recall memory stores scoped to the spec.",
   continuity: "Session continuity — persist and restore conversation state across restarts.",
-  thredz: "Thredz wiki integration — a living knowledge base the agent reads and writes.",
+  thredz:
+    "Thredz wiki integration — a living knowledge base the agent reads and writes, optionally scoped to a wiki space.",
   learning: "Self-learning loop — distills run experience back into guidance.",
   budget: "Spend ceiling for a run (USD / token caps).",
   limits: "Hard runtime ceilings — tool iterations, timeouts, context cap, loop detection.",

@@ -919,7 +919,16 @@ function thredzFields(): FieldSeed[] {
       label: "Visibility",
       kind: "enum",
       enumValues: ["private", "shared"],
-      description: "private (default) overrides Thredz's shared-by-default.",
+      description:
+        "private (default) overrides Thredz's shared-by-default. Ignored inside a space — there the space's type decides.",
+    },
+    {
+      rel: ["space"],
+      label: "Wiki space",
+      kind: "string",
+      placeholder: "research-notes",
+      description:
+        "Pro/Scale wiki space to scope this agent's memory to. A shared space is readable by every key on the account; an individual space only by the key that owns it — and one individual space per API key is a hard limit, so per-agent private memory needs a key per agent. Free/Starter have no spaces.",
     },
     {
       rel: ["goals"],
