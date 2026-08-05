@@ -1,8 +1,8 @@
 {
   "name": "@crewhaus/spec-forms",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "type": "module",
-  "description": "Schema-driven form + loop-projection model for CrewHaus spec editing — the shared authoring engine behind the iPad Studio and the local Studio (Section 26 Studio)",
+  "description": "Schema-driven form + loop-projection model for CrewHaus spec editing \u2014 the shared authoring engine behind the iPad Studio and the local Studio (Section 26 Studio)",
   "main": "src/index.ts",
   "types": "src/index.ts",
   "exports": {
