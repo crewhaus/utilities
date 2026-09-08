@@ -14,7 +14,9 @@
  *   - spec-model    — parse/serialize a spec into a mutable `yaml` Document +
  *                     path get/set/delete (the substrate every edit rides on).
  *   - spec-schema   — load the machine-readable spec schema (remote → cache →
- *                     bundled 0.4 fallback) that drives which fields exist.
+ *                     bundled snapshot fallback) that drives which fields
+ *                     exist. The snapshot is generated from the compiler's own
+ *                     specJsonSchema(); see the README.
  *   - form-model    — schema-driven typed fields per spec block, edit coercion
  *                     + write-back, and structural add/rename/remove of
  *                     steps/nodes/roles/edges/judge gates.
