@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
+import { parse as parseYaml } from "yaml";
 import { parseSpecModel, serializeSpecModel, type SpecPath } from "./spec-model";
+import SNAPSHOT from "./spec-schema-snapshot.json";
 import { FALLBACK_SCHEMA } from "./spec-schema";
 import {
   addEdge,
@@ -1364,6 +1366,58 @@ describe("fieldsForBlock — hybrid routing family (0.6.0)", () => {
       expect(fieldAt(fields, [...path, "temperature"]).requiresVersion).toBe("0.6.0");
       expect(fieldAt(fields, [...path, "model_pool", "strategy"]).requiresVersion).toBe("0.6.0");
       expect(fieldAt(fields, [...path, "model_tiers"]).kind).toBe("record");
+    }
+  });
+
+  // The routing family reached the three canvas blocks at DIFFERENT releases:
+  // steps and roles at 0.4.0 (per-step / per-role routing), graph nodes only at
+  // 0.6.0. An unmarked field is reported as a genuine spec error rather than
+  // "needs crewhaus <version>", so the marker has to follow the block.
+  test("the older routing keys are marked per block: 0.4.0 on steps/roles, 0.6.0 on nodes", () => {
+    const OLDER = [
+      ["model_tiers"],
+      ["circuit_breaker"],
+      ["model_pool", "candidates"],
+      ["model_pool", "policy"],
+      ["model_pool", "routing"],
+      ["model_pool", "learning"],
+      ["model_pool", "objective"],
+    ] as const;
+    for (const [target, path, since] of [
+      ["workflow", ["steps", 0], "0.4.0"],
+      ["crew", ["roles", "writer"], "0.4.0"],
+      ["graph", ["nodes", "draft"], "0.6.0"],
+    ] as const) {
+      const fields = fieldsForBlock(S, target, [...path]);
+      for (const rel of OLDER) {
+        expect(fieldAt(fields, [...path, ...rel]).requiresVersion).toBe(since);
+      }
+    }
+    // The agent block has carried them since before the deployed 0.3.x line.
+    const agent = fieldsForBlock(S, "cli", ["agent"]);
+    for (const rel of OLDER) {
+      expect(fieldAt(agent, ["agent", ...rel]).requiresVersion).toBeUndefined();
+    }
+  });
+
+  // A placeholder is example spec text an author pastes, so it has to parse
+  // against the SHIPPED grammar — a key the schema rejects hands out an
+  // invalid config on every model-bearing block.
+  test("the model_tiers placeholder only uses keys the snapshot grammar accepts", () => {
+    const tiers = (SNAPSHOT as any).definitions.cli.properties.agent.properties.model_tiers;
+    const allowed = Object.keys(tiers.properties as Record<string, unknown>);
+    const required = tiers.required as string[];
+    for (const [target, path] of [
+      ["cli", ["agent"]],
+      ["workflow", ["steps", 0]],
+      ["graph", ["nodes", "draft"]],
+      ["crew", ["roles", "writer"]],
+    ] as const) {
+      const field = fieldAt(fieldsForBlock(S, target, [...path]), [...path, "model_tiers"]);
+      const keys = Object.keys(parseYaml(field.placeholder ?? "") as Record<string, unknown>);
+      expect(keys.length).toBeGreaterThan(0);
+      for (const key of keys) expect(allowed).toContain(key);
+      for (const key of required) expect(keys).toContain(key);
     }
   });
 

@@ -24,10 +24,14 @@
  *   3. `<repo>/../factory`   — a sibling checkout of
  *      https://github.com/crewhaus/factory (the layout `bun install` already
  *      assumes for cross-repo work);
- *   4. the published `@crewhaus/spec` npm package — the zero-checkout path,
- *      which is what most contributors have. It can only ever produce the
- *      RELEASED grammar, so regenerating for an unreleased line (the usual
- *      reason to run this) needs one of 1–3.
+ *   4. the published `@crewhaus/spec` npm package — the zero-checkout path.
+ *      It needs `@crewhaus/spec` >= 0.4.0 resolvable from this repo, because
+ *      `specJsonSchema()` first shipped in 0.4.0. TODAY THAT RUNG NEVER FIRES:
+ *      this workspace pins `^0.1.2`, which carries no such export, so
+ *      `bun install` cannot make it work — raising the pin would. Until then a
+ *      factory checkout (1–3) is required. It could only ever produce the
+ *      RELEASED grammar anyway, so regenerating for an unreleased line (the
+ *      usual reason to run this) needs a checkout regardless.
  * 1 and 2 are explicit, so a missing/!checkout path there is a hard error
  * rather than a silent slide down to a stale npm copy.
  *
@@ -123,7 +127,7 @@ function resolveSpecModule(): SpecModuleSource {
   const published = npmSource();
   if (published) return published;
   return fail(
-    "no compiler to read: pass --factory <dir>, set $CREWHAUS_FACTORY, check out crewhaus/factory next to this repo, or `bun install` so @crewhaus/spec resolves.",
+    "no compiler to read: pass --factory <dir>, set $CREWHAUS_FACTORY, or check out crewhaus/factory next to this repo. (The npm fallback needs @crewhaus/spec >= 0.4.0 for specJsonSchema(); this workspace pins ^0.1.2, so installing will not supply it.)",
   );
 }
 
@@ -142,7 +146,9 @@ async function loadSchema(source: SpecModuleSource): Promise<Json> {
   }
   const specJsonSchema = (mod as { specJsonSchema?: unknown }).specJsonSchema;
   if (typeof specJsonSchema !== "function") {
-    return fail(`${source.label} exports no specJsonSchema() — is it an older @crewhaus/spec?`);
+    return fail(
+      `${source.label} exports no specJsonSchema() — it first shipped in @crewhaus/spec 0.4.0, so this is an older copy.`,
+    );
   }
   const schema = (specJsonSchema as () => unknown)();
   if (!isRecord(schema) || !isRecord(schema["definitions"])) {

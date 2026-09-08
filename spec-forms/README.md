@@ -49,7 +49,9 @@ const loop = projectLoop(parseSpecModel(yaml).model);
 `src/spec-schema-snapshot.json` is a checked-in copy of the compiler's own
 `specJsonSchema()` document — the offline fallback the form engine drives from
 when neither the live `/schema` endpoint nor a cached copy is reachable. It is
-**generated, never hand-edited**. From the repo root:
+**generated, never hand-edited**. From the root of a clone of
+[crewhaus/utilities](https://github.com/crewhaus/utilities) (the `scripts/`
+directory is not part of the published tarball):
 
 ```bash
 bun scripts/regen-spec-schema.ts            # regenerate + report new block keys
@@ -59,8 +61,11 @@ bun scripts/regen-spec-schema.ts --check    # is the snapshot stale? (no writes)
 The script resolves the compiler in this order, first hit wins: `--factory
 <dir>`, `$CREWHAUS_FACTORY`, a sibling checkout of
 [crewhaus/factory](https://github.com/crewhaus/factory), then the published
-`@crewhaus/spec` package. The npm path can only ever produce the RELEASED
-grammar, so regenerating for an unreleased line needs a checkout.
+`@crewhaus/spec` package. **In practice a factory checkout is required**: the
+npm rung needs `@crewhaus/spec` >= 0.4.0 (where `specJsonSchema()` first
+shipped) and this workspace pins `^0.1.2`, so it cannot fire until that pin is
+raised. It could only ever produce the RELEASED grammar in any case, so
+regenerating for an unreleased line needs a checkout regardless.
 
 Along with the document it writes `src/spec-schema-snapshot.meta.json` — the
 `@crewhaus/spec` version it read plus a content digest, which is what

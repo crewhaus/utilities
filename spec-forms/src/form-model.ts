@@ -326,20 +326,30 @@ function thinkingSeeds(version: string = V040, base: SpecPath = []): FieldSeed[]
 }
 
 /**
- * 0.6.0 — the routing family every model-bearing block carries: `temperature`,
- * the two pre-0.3 routing blocks (`model_tiers`, `circuit_breaker`) that were
- * never surfaced as fields, and `model_pool` with its hybrid siblings. Only the
- * genuinely new keys are marked: the pool, its tiers, its breaker, its
- * `routing`/`learning`/`objective` tuning and the `static|heuristic|learned`
- * policies all ship on the deployed line; `classifier` as a policy, and
- * `rules`/`directives`/`classifier`/`strategy`/`reward`/`scope` as keys, are
- * 0.6.0.
+ * The routing family every model-bearing block carries: `temperature`, the two
+ * older routing blocks (`model_tiers`, `circuit_breaker`) that were never
+ * surfaced as fields, and `model_pool` with its hybrid siblings.
+ *
+ * `temperature`, `classifier` as a policy, and the hybrid sibling KEYS
+ * (`rules` / `directives` / `classifier` / `strategy` / `reward` / `scope`) are
+ * 0.6.0 on every block. The OLDER members — `model_tiers`, `circuit_breaker`
+ * and `model_pool`'s `candidates` / `policy` / `routing` / `learning` /
+ * `objective` — landed on different blocks at different times, so the caller
+ * says which with `since`:
+ *   - cli / channel / managed / pooled AGENT blocks have carried them since
+ *     before the deployed 0.3.x line → `since` omitted, no marker;
+ *   - workflow steps and crew roles gained them at 0.4.0 → `since: V040`;
+ *   - graph nodes gained them only at 0.6.0 → `since: V060`.
+ * Getting that wrong is not cosmetic: an unmarked field authored against an
+ * older compiler is reported as a genuine spec error instead of "needs
+ * crewhaus <version>", which is exactly what the markers exist to prevent.
  *
  * `tiers` is false for the pooled-only agents (pipeline / research / batch /
  * browser), whose agent block takes `model_pool` + `temperature` but no
  * `model_tiers` / `circuit_breaker`.
  */
-function hybridRoutingSeeds(opts: { tiers: boolean }): FieldSeed[] {
+function hybridRoutingSeeds(opts: { tiers: boolean; since?: string }): FieldSeed[] {
+  const since = opts.since === undefined ? {} : { requiresVersion: opts.since };
   const seeds: FieldSeed[] = [
     {
       rel: ["temperature"],
@@ -357,14 +367,16 @@ function hybridRoutingSeeds(opts: { tiers: boolean }): FieldSeed[] {
         rel: ["model_tiers"],
         label: "Model tiers",
         kind: "record",
-        placeholder: "fast: claude-haiku-4-5\nhard: claude-opus-4-7",
+        ...since,
+        placeholder: "fast: claude-haiku-4-5\ndefault: claude-opus-4-7",
         description:
-          "Two-tier turn routing — fast handles ordinary turns, hard takes the heavy ones.",
+          "Two-tier turn routing — `fast` takes ordinary turns, `default` the heavy ones (both required).",
       },
       {
         rel: ["circuit_breaker"],
         label: "Circuit breaker",
         kind: "record",
+        ...since,
         placeholder: "failureThreshold: 3\nwindowMs: 60000\ncooldownMs: 30000",
         description:
           "Trip the primary model out of rotation after repeated failures, then cool down.",
@@ -376,6 +388,7 @@ function hybridRoutingSeeds(opts: { tiers: boolean }): FieldSeed[] {
       rel: ["model_pool", "candidates"],
       label: "Pool candidates",
       kind: "yaml",
+      ...since,
       placeholder:
         "- model: claude-haiku-4-5\n  tags: [cheap]\n- model: claude-opus-4-7\n  tags: [strong]",
       description:
@@ -385,6 +398,7 @@ function hybridRoutingSeeds(opts: { tiers: boolean }): FieldSeed[] {
       rel: ["model_pool", "policy"],
       label: "Pool policy",
       kind: "enum",
+      ...since,
       enumValues: ["static", "heuristic", "learned", "classifier"],
       enumVersions: { classifier: V060 },
       description:
@@ -446,6 +460,7 @@ function hybridRoutingSeeds(opts: { tiers: boolean }): FieldSeed[] {
       rel: ["model_pool", "routing"],
       label: "Routing signals",
       kind: "record",
+      ...since,
       placeholder: "contextTokenThreshold: 60000\ntoolsToDefault: true",
       description: "Heuristic-policy thresholds (context size, tools in play, first turn, tags).",
     },
@@ -453,6 +468,7 @@ function hybridRoutingSeeds(opts: { tiers: boolean }): FieldSeed[] {
       rel: ["model_pool", "learning"],
       label: "Learning",
       kind: "record",
+      ...since,
       placeholder: "bandit: thompson\nminSamplesPerArm: 20",
       description: "Bandit tuning for the learned policy — arm warm-up, refs, exploration, seed.",
     },
@@ -460,6 +476,7 @@ function hybridRoutingSeeds(opts: { tiers: boolean }): FieldSeed[] {
       rel: ["model_pool", "objective"],
       label: "Objective weights",
       kind: "record",
+      ...since,
       placeholder: "quality: 1\ncost: 0.5\nlatency: 0.2",
       description: "Relative weights the learned policy scores arms with.",
     },
@@ -726,8 +743,10 @@ function stepNodeRoleFields(kind: NamedEntityKind): FieldSeed[] {
     },
     ...thinkingSeeds(),
     toolsSeed(["tools"]),
-    // Steps, nodes and roles all carry the routing family (0.6.0 §11.3).
-    ...hybridRoutingSeeds({ tiers: true }),
+    // Steps, nodes and roles all carry the routing family (0.6.0 §11.3) — but
+    // its older members reached steps/roles at 0.4.0 and graph nodes only at
+    // 0.6.0, so the marker differs by block (see hybridRoutingSeeds).
+    ...hybridRoutingSeeds({ tiers: true, since: kind === "node" ? V060 : V040 }),
   );
   if (kind === "node") {
     seeds.push({
