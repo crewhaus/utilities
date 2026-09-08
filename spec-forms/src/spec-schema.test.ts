@@ -1,4 +1,6 @@
+import { createHash } from "node:crypto";
 import { describe, expect, test } from "bun:test";
+import SNAPSHOT_META from "./spec-schema-snapshot.meta.json";
 import SNAPSHOT from "./spec-schema-snapshot.json";
 import {
   blocksForTarget,
@@ -214,9 +216,22 @@ describe("spec-schema snapshot (drift guards vs the real specJsonSchema())", () 
 // --- FALLBACK_SCHEMA (derived from the snapshot) ------------------------------
 
 describe("FALLBACK_SCHEMA (snapshot-derived)", () => {
-  test("stamps the snapshot provenance version", () => {
+  test("stamps the snapshot provenance version from the generated sidecar", () => {
     expect(FALLBACK_SCHEMA.schemaVersion).toBe(FALLBACK_SCHEMA_VERSION);
-    expect(FALLBACK_SCHEMA_VERSION).toContain("79251acd");
+    expect(FALLBACK_SCHEMA_VERSION).toBe(
+      `fallback-${SNAPSHOT_META.specPackageVersion}-${SNAPSHOT_META.digest}`,
+    );
+    expect(SNAPSHOT_META.targets).toBe(EXPECTED_TARGETS.length);
+    expect(SNAPSHOT_META.generator).toBe("scripts/regen-spec-schema.ts");
+  });
+
+  // The stamp is only honest while the sidecar describes THIS snapshot: the
+  // digest is taken over the generator's own serialization of the document, so
+  // re-deriving it here catches a hand-edited snapshot or a half-run regen.
+  test("the sidecar digest still matches the snapshot bytes", () => {
+    const serialized = `${JSON.stringify(SNAPSHOT, null, 2)}\n`;
+    const digest = createHash("sha256").update(serialized).digest("hex").slice(0, 8);
+    expect(digest).toBe(SNAPSHOT_META.digest);
   });
 
   test("lists exactly the 14 canonical target shapes", () => {
@@ -394,16 +409,38 @@ describe("FALLBACK_SCHEMA (snapshot-derived)", () => {
     expect(FALLBACK_SCHEMA.blockVersions?.["observability"]).toBeUndefined();
   });
 
-  test("only the Batch-A/B loop keys carry a version marker (0.3 blocks stay unmarked)", () => {
+  test("only post-0.3 blocks carry a version marker (0.3 blocks stay unmarked)", () => {
     expect(Object.keys(FALLBACK_SCHEMA.blockVersions ?? {}).sort()).toEqual([
       "evaluation",
+      "expose",
       "hooks",
+      "knowledge",
       "limits",
+      "models",
       "parallel",
+      "plugins",
+      "schedule",
+      "watchme",
     ]);
     // 0.3-era blocks present on cli must NOT be marked (observability included).
     for (const k of ["agent", "budget", "memory", "permissions", "observability"]) {
       expect(FALLBACK_SCHEMA.blockVersions?.[k]).toBeUndefined();
+    }
+    // Each marker is the version that introduced the block.
+    expect(FALLBACK_SCHEMA.blockVersions?.["watchme"]).toBe("0.4.1");
+    expect(FALLBACK_SCHEMA.blockVersions?.["models"]).toBe("0.6.0");
+  });
+
+  // 0.6.0: the model-profile registry is offered on every shape — a $profile
+  // reference is legal at any model slot, including the shapes with no pool.
+  test("models is offered on all 14 targets, 0.6.0-marked", () => {
+    for (const target of FALLBACK_SCHEMA.targets) {
+      expect({ target, models: (FALLBACK_SCHEMA.blocksByTarget[target] ?? []).includes("models") })
+        .toEqual({ target, models: true });
+    }
+    for (const target of FALLBACK_SCHEMA.targets) {
+      expect(blocksForTarget(FALLBACK_SCHEMA, target).find((b) => b.key === "models")
+        ?.requiresVersion).toBe("0.6.0");
     }
   });
 

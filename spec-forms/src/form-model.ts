@@ -21,19 +21,29 @@
 //   - Batch-B additions (the top-level `evaluation:` block and the `kind:
 //     judge` step/node `judge:` gate) — ground-truthed against the pinned
 //     factory commit's packages/spec.
+//   - the 0.6.0 per-model / hybrid surface: the `models:` profile registry and
+//     `$profile` references, `temperature`, the routing family on every
+//     model-bearing block (model_tiers / model_pool / circuit_breaker) with
+//     model_pool's rules / directives / classifier / strategy / reward / scope,
+//     `evaluation.on_fail: escalate` + `allow_self_judge` + the grader panel,
+//     the judge-gate panel and `escalate_to`, `budget.{judge_share,scope}`,
+//     the routing SLOs, and crew `routing.model`.
 // The `permissions.ask_mode` field and the observability
 // trace/metrics/cost/alerts/incidents/otel fields are loop-contract-0.4
 // Batch-C keys (AGENT-LOOPS-PLAN G11 and G26) authored slightly AHEAD of the
 // pinned factory spec — real planned keys the deployed compiler does not yet
 // validate — so they are ground-truthed against the plan and reconcile with
 // packages/spec once Batch C lands.
-// Fields the deployed 0.3.x line does not know carry `requiresVersion:
-// "0.4.0"` — the builder still authors them, and the validity badge uses the
-// marker to classify a remote unknown-key error as "needs compiler 0.4.0"
-// instead of a genuine spec error. Block-LEVEL markers come from the schema's
-// `blockVersions` (see ./spec-schema.ts); the per-field markers here cover
-// keys nested inside blocks the schema does not version-mark (agent.thinking,
-// compaction.threshold, edges[].when, evaluation.*, judge.*, ask_mode, …).
+// Fields the deployed 0.3.x line does not know carry `requiresVersion` — the
+// crewhaus version that introduced the KEY ({@link V040} / {@link V060}). The
+// builder still authors them, and the validity badge uses the marker to
+// classify a remote unknown-key error as "needs compiler <version>" instead of
+// a genuine spec error. Block-LEVEL markers come from the schema's
+// `blockVersions` (see ./spec-schema.ts) and fill in for any field that
+// declares none; the per-field markers here cover keys nested inside blocks the
+// schema does not version-mark (agent.thinking, agent.temperature,
+// compaction.threshold, edges[].when, evaluation.*, judge.*, ask_mode,
+// model_pool.strategy, …).
 //
 // Discipline (mirrors ./spec-model.ts / ./loop-model.ts / ./fleet.ts): this
 // file imports NOTHING from ./compiler or ./cloudflare — those pull in the
@@ -114,6 +124,9 @@ export type NamedEntityKind = "step" | "node" | "role";
 /** The loop-contract-0.4 marker every Batch-A field carries. */
 const V040 = "0.4.0";
 
+/** The marker every per-model / hybrid-routing key introduced in 0.6.0 carries. */
+const V060 = "0.6.0";
+
 /**
  * The builtin tool names the compiled targets can resolve — suggestion list
  * for `tools:` fields. DUPLICATED from BUILTIN_TOOL_MAP in factory
@@ -182,6 +195,11 @@ export const NEW_JUDGE_CRITERIA_PLACEHOLDER = "Describe what a passing result mu
 // max-tokens-0.4 agents gained `max_tokens` only in the 0.4 line.
 const INTERACTIVE_AGENT_TARGETS = new Set(["cli", "channel", "managed"]);
 const MAX_TOKENS_040_AGENT_TARGETS = new Set(["research", "batch", "browser"]);
+// The pooled shapes (0.6.0 §11.3): their agent takes `model_pool` +
+// `temperature`, but no `model_tiers` / `circuit_breaker` of its own.
+const POOLED_AGENT_TARGETS = new Set(["pipeline", "research", "batch", "browser"]);
+// The agent blocks that carry `sub_agents:` (crew declares them per role).
+const SUB_AGENT_AGENT_TARGETS = new Set(["cli", "channel"]);
 
 // --- field helpers -------------------------------------------------------------
 
@@ -277,29 +295,316 @@ function specCoreFields(target: string): FieldSeed[] {
   return seeds;
 }
 
-/** thinking{budget_tokens|effort} — per-agent AND per-step/node/role, all 0.4.0. */
-function thinkingSeeds(): FieldSeed[] {
+/**
+ * thinking{budget_tokens|effort} — per-agent, per-step/node/role (0.4.0), and
+ * per model PROFILE (0.6.0, where the whole `models:` block is newer than the
+ * key itself). `version` is the marker the two fields carry, and `base` the
+ * path they hang off (`[]` for the block's own `thinking:`).
+ */
+function thinkingSeeds(version: string = V040, base: SpecPath = []): FieldSeed[] {
   return [
     {
-      rel: ["thinking", "budget_tokens"],
+      rel: [...base, "thinking", "budget_tokens"],
       label: "Thinking budget (tokens)",
       kind: "number",
       integer: true,
-      requiresVersion: V040,
+      requiresVersion: version,
       placeholder: "4096",
       description:
         "Extended-thinking token budget (>= 1024). Declare exactly ONE of budget or effort.",
     },
     {
-      rel: ["thinking", "effort"],
+      rel: [...base, "thinking", "effort"],
       label: "Thinking effort",
       kind: "enum",
       enumValues: ["low", "medium", "high"],
-      requiresVersion: V040,
+      requiresVersion: version,
       description:
         "Portable effort preset the adapter maps to a provider budget. Declare exactly ONE of budget or effort.",
     },
   ];
+}
+
+/**
+ * 0.6.0 — the routing family every model-bearing block carries: `temperature`,
+ * the two pre-0.3 routing blocks (`model_tiers`, `circuit_breaker`) that were
+ * never surfaced as fields, and `model_pool` with its hybrid siblings. Only the
+ * genuinely new keys are marked: the pool, its tiers, its breaker, its
+ * `routing`/`learning`/`objective` tuning and the `static|heuristic|learned`
+ * policies all ship on the deployed line; `classifier` as a policy, and
+ * `rules`/`directives`/`classifier`/`strategy`/`reward`/`scope` as keys, are
+ * 0.6.0.
+ *
+ * `tiers` is false for the pooled-only agents (pipeline / research / batch /
+ * browser), whose agent block takes `model_pool` + `temperature` but no
+ * `model_tiers` / `circuit_breaker`.
+ */
+function hybridRoutingSeeds(opts: { tiers: boolean }): FieldSeed[] {
+  const seeds: FieldSeed[] = [
+    {
+      rel: ["temperature"],
+      label: "Temperature",
+      kind: "number",
+      requiresVersion: V060,
+      placeholder: "0.2",
+      description:
+        "Sampling temperature (0–2). Mutually exclusive with thinking on the same block.",
+    },
+  ];
+  if (opts.tiers) {
+    seeds.push(
+      {
+        rel: ["model_tiers"],
+        label: "Model tiers",
+        kind: "record",
+        placeholder: "fast: claude-haiku-4-5\nhard: claude-opus-4-7",
+        description:
+          "Two-tier turn routing — fast handles ordinary turns, hard takes the heavy ones.",
+      },
+      {
+        rel: ["circuit_breaker"],
+        label: "Circuit breaker",
+        kind: "record",
+        placeholder: "failureThreshold: 3\nwindowMs: 60000\ncooldownMs: 30000",
+        description:
+          "Trip the primary model out of rotation after repeated failures, then cool down.",
+      },
+    );
+  }
+  seeds.push(
+    {
+      rel: ["model_pool", "candidates"],
+      label: "Pool candidates",
+      kind: "yaml",
+      placeholder:
+        "- model: claude-haiku-4-5\n  tags: [cheap]\n- model: claude-opus-4-7\n  tags: [strong]",
+      description:
+        "The models the router may serve — each { model, tags?, enabled? } plus any per-model profile field inline.",
+    },
+    {
+      rel: ["model_pool", "policy"],
+      label: "Pool policy",
+      kind: "enum",
+      enumValues: ["static", "heuristic", "learned", "classifier"],
+      enumVersions: { classifier: V060 },
+      description:
+        "How the next model is picked: static, heuristic signals (default), learned from the scoreboard, or a classifier call.",
+    },
+    {
+      rel: ["model_pool", "rules"],
+      label: "Routing rules",
+      kind: "yaml",
+      requiresVersion: V060,
+      placeholder:
+        "- id: images-go-strong\n  when: { has_images: true }\n  use: strong",
+      description:
+        "Ordered { id, when, use } rules evaluated before the policy — first match wins.",
+    },
+    {
+      rel: ["model_pool", "directives"],
+      label: "Accept /model directives",
+      kind: "boolean",
+      requiresVersion: V060,
+      description: "Let a message pick its own arm with a /model directive (default off).",
+    },
+    {
+      rel: ["model_pool", "classifier"],
+      label: "Classifier",
+      kind: "record",
+      requiresVersion: V060,
+      placeholder: "model: claude-haiku-4-5\nlabels:\n  cheap: routine chat\n  strong: hard reasoning",
+      description:
+        "The labelling call the classifier policy routes on — { model, labels, max_tokens? }.",
+    },
+    {
+      rel: ["model_pool", "strategy"],
+      label: "Hybrid strategy",
+      kind: "record",
+      requiresVersion: V060,
+      placeholder: "cascade:\n  draft: cheap\n  escalate_to: strong",
+      description:
+        "cascade / guide / shadow / committee, plus model_directed and max_escalations.",
+    },
+    {
+      rel: ["model_pool", "reward"],
+      label: "Reward",
+      kind: "record",
+      requiresVersion: V060,
+      placeholder: "quality_source: in_loop\nfloor:\n  confidence: 0.9\n  tolerance: 0.05",
+      description:
+        "What quality the scoreboard learns from, its priors, and the floor a cheap arm may not fall below.",
+    },
+    {
+      rel: ["model_pool", "scope"],
+      label: "Pool scope",
+      kind: "string",
+      requiresVersion: V060,
+      description:
+        "Name that keys this pool's scoreboard; the compiler stamps one when it is omitted.",
+    },
+    {
+      rel: ["model_pool", "routing"],
+      label: "Routing signals",
+      kind: "record",
+      placeholder: "contextTokenThreshold: 60000\ntoolsToDefault: true",
+      description: "Heuristic-policy thresholds (context size, tools in play, first turn, tags).",
+    },
+    {
+      rel: ["model_pool", "learning"],
+      label: "Learning",
+      kind: "record",
+      placeholder: "bandit: thompson\nminSamplesPerArm: 20",
+      description: "Bandit tuning for the learned policy — arm warm-up, refs, exploration, seed.",
+    },
+    {
+      rel: ["model_pool", "objective"],
+      label: "Objective weights",
+      kind: "record",
+      placeholder: "quality: 1\ncost: 0.5\nlatency: 0.2",
+      description: "Relative weights the learned policy scores arms with.",
+    },
+  );
+  return seeds;
+}
+
+/**
+ * 0.6.0 — one entry of the top-level `models:` registry: everything that can
+ * differ per model, declared once and referenced as `$<name>` at any model
+ * slot. The whole BLOCK is 0.6.0-marked in the schema, so these fields inherit
+ * the marker (see `fieldsForBlock`) and carry none of their own.
+ */
+function modelProfileFields(): FieldSeed[] {
+  return [
+    {
+      rel: ["model"],
+      label: "Model",
+      kind: "string",
+      required: true,
+      placeholder: "claude-haiku-4-5",
+      description: "Model-router grammar string, or the cheapest / strongest sentinel.",
+    },
+    {
+      rel: ["tags"],
+      label: "Tags",
+      kind: "string-list",
+      description: "Tags rules and strategies address this profile by (replaces a candidate's own).",
+    },
+    {
+      rel: ["instructions"],
+      label: "Instructions overlay",
+      kind: "string",
+      description: "Extra instructions appended only while this model serves.",
+    },
+    {
+      rel: ["max_tokens"],
+      label: "Max output tokens",
+      kind: "number",
+      integer: true,
+      description: "Model max OUTPUT tokens per turn while this profile serves.",
+    },
+    {
+      rel: ["temperature"],
+      label: "Temperature",
+      kind: "number",
+      placeholder: "0.2",
+      description: "Sampling temperature (0–2). Mutually exclusive with thinking on one profile.",
+    },
+    ...thinkingSeeds(V060),
+    toolsSeed(["tools"]),
+    {
+      rel: ["tool_config"],
+      label: "Tool config",
+      kind: "record",
+      description: "Per-tool overrides applied while this model serves.",
+    },
+    {
+      rel: ["permissions", "deny"],
+      label: "Deny",
+      kind: "string-list",
+      description: "Extra deny rules for this model — narrowing only (no allow, no mode).",
+    },
+    {
+      rel: ["permissions", "ask"],
+      label: "Ask",
+      kind: "string-list",
+      description: "Extra ask rules for this model — narrowing only (no allow, no mode).",
+    },
+    {
+      rel: ["rate_limits"],
+      label: "Rate limits",
+      kind: "record",
+      placeholder: 'webFetch:\n  rpm: 30\n"*":\n  rpm: 120',
+      description: "Per-tool requests-per-minute ceilings while this model serves.",
+    },
+    {
+      rel: ["limits", "model_call_timeout_ms"],
+      label: "Model call timeout (ms)",
+      kind: "number",
+      integer: true,
+      description: "Per-call timeout for this model.",
+    },
+    {
+      rel: ["caching"],
+      label: "Caching",
+      kind: "enum",
+      enumValues: ["prefer", "off"],
+      description: "Prompt-cache preference for this model.",
+    },
+    {
+      rel: ["cost", "max_usd"],
+      label: "Cost ceiling (USD)",
+      kind: "number",
+      placeholder: "1",
+      description: "Spend cap for this profile; once reached it is ineligible (the run continues).",
+    },
+    {
+      rel: ["requires"],
+      label: "Requires",
+      kind: "record",
+      placeholder: "vision: true\ncontext_window_gte: 200000",
+      description:
+        "Capabilities a turn must need for this profile to be eligible (tool_use, vision, thinking, web_search, context/output floors).",
+    },
+    {
+      rel: ["capabilities"],
+      label: "Capabilities",
+      kind: "record",
+      placeholder: "vision: true\ncontext_window: 200000",
+      description: "Declared capability override for a model the capability table does not know.",
+    },
+    {
+      rel: ["fallbacks"],
+      label: "Fallbacks",
+      kind: "string-list",
+      description: "Failover chain for this profile, tried in declared order.",
+    },
+    {
+      rel: ["circuit_breaker"],
+      label: "Circuit breaker",
+      kind: "record",
+      placeholder: "failureThreshold: 3\nwindowMs: 60000\ncooldownMs: 30000",
+      description: "Trip this profile out of rotation after repeated failures, then cool down.",
+    },
+  ];
+}
+
+/**
+ * `sub_agents:` — named delegates the Task tool can hand work to. The block
+ * itself predates the deployed line, so it carries no marker; its ROUTING keys
+ * (`model_pool`, `allowed_profiles`, `inherit_routing`, `budget_share`) are
+ * 0.6.0 and the description says so, because the whole map is edited as one
+ * record here.
+ */
+function subAgentsSeed(): FieldSeed {
+  return {
+    rel: ["sub_agents"],
+    label: "Sub-agents",
+    kind: "record",
+    placeholder:
+      "researcher:\n  description: Digs up sources\n  instructions: Find and cite primary sources.\n  model: claude-haiku-4-5",
+    description:
+      "name -> { description, instructions, model?, tools?, … }. Per-sub-agent routing (model_pool, allowed_profiles, inherit_routing, budget_share) needs crewhaus >= 0.6.0.",
+  };
 }
 
 function toolsSeed(rel: SpecPath): FieldSeed {
@@ -374,6 +679,12 @@ function agentFields(target: string): FieldSeed[] {
       // channel nests the tool allow-list under agent: (no top-level tools).
       seeds.push(toolsSeed(["tools"]));
     }
+    seeds.push(...hybridRoutingSeeds({ tiers: true }));
+    if (SUB_AGENT_AGENT_TARGETS.has(target)) seeds.push(subAgentsSeed());
+  } else if (POOLED_AGENT_TARGETS.has(target)) {
+    // pipeline / research / batch / browser: a pool and a temperature, but no
+    // tiers or breaker of their own.
+    seeds.push(...hybridRoutingSeeds({ tiers: false }));
   }
   return seeds;
 }
@@ -415,6 +726,8 @@ function stepNodeRoleFields(kind: NamedEntityKind): FieldSeed[] {
     },
     ...thinkingSeeds(),
     toolsSeed(["tools"]),
+    // Steps, nodes and roles all carry the routing family (0.6.0 §11.3).
+    ...hybridRoutingSeeds({ tiers: true }),
   );
   if (kind === "node") {
     seeds.push({
@@ -424,6 +737,7 @@ function stepNodeRoleFields(kind: NamedEntityKind): FieldSeed[] {
       description: "When set, the run pauses at this node until a human approves.",
     });
   }
+  if (kind === "role") seeds.push(subAgentsSeed());
   return seeds;
 }
 
@@ -490,8 +804,60 @@ function judgeStepNodeFields(kind: "step" | "node"): FieldSeed[] {
       requiresVersion: V040,
       description: "Hard cap on judge-triggered re-runs of the gated step/node (default 1, max 5).",
     },
+    // 0.6.0 — the judge PANEL and the escalating re-run.
+    ...judgePanelSeeds(["judge"]),
+    {
+      rel: ["judge", "escalate_to"],
+      label: "Escalate to",
+      kind: "string",
+      requiresVersion: V060,
+      description:
+        "Pool tag or $profile the retry_previous re-run is forced onto (the gated step/node's model_pool must declare it).",
+    },
   );
   return seeds;
+}
+
+/**
+ * 0.6.0 — the grader-panel knobs shared by the top-level `evaluation.grader`
+ * and a `kind: judge` step/node's `judge:` gate: a panel of judges whose
+ * verdicts are folded, repeated sampling, the judge's own temperature, and
+ * which text is scored. `base` is the path they hang off.
+ */
+function judgePanelSeeds(base: SpecPath): FieldSeed[] {
+  return [
+    {
+      rel: [...base, "judges"],
+      label: "Judge panel",
+      kind: "string-list",
+      requiresVersion: V060,
+      description:
+        "Model ids or $profile refs whose verdicts are folded into one score; mutually exclusive with a single judge model.",
+    },
+    {
+      rel: [...base, "repeats"],
+      label: "Repeats",
+      kind: "number",
+      integer: true,
+      requiresVersion: V060,
+      description: "Verdicts per judge, folded by median (default 1, max 9).",
+    },
+    {
+      rel: [...base, "temperature"],
+      label: "Judge temperature",
+      kind: "number",
+      requiresVersion: V060,
+      description: "Pinned judge sampling temperature (0 keeps verdicts stable).",
+    },
+    {
+      rel: [...base, "target"],
+      label: "Scored text",
+      kind: "enum",
+      enumValues: ["output", "transcript"],
+      requiresVersion: V060,
+      description: "What the judge grades: the final text (default) or the run trajectory.",
+    },
+  ];
 }
 
 function edgeFields(): FieldSeed[] {
@@ -691,6 +1057,23 @@ function budgetFields(): FieldSeed[] {
       placeholder: "claude-haiku-4-5",
       description: "Cheaper model to continue on (required when action is degrade).",
     },
+    {
+      rel: ["scope"],
+      label: "Scope",
+      kind: "enum",
+      enumValues: ["run", "session"],
+      requiresVersion: V060,
+      description: "Whether the ceiling covers one run (default) or the whole session.",
+    },
+    {
+      rel: ["judge_share"],
+      label: "Judge share",
+      kind: "number",
+      requiresVersion: V060,
+      placeholder: "0.3",
+      description:
+        "Fraction of the ceiling the auxiliary calls (judge, compaction, guide, …) may spend; default 0.3.",
+    },
   ];
 }
 
@@ -746,14 +1129,16 @@ function evaluationFields(): FieldSeed[] {
       placeholder: "0.7",
       description: "Passing score in 0..1 (default 0.7); llm_judge grader only.",
     },
+    ...judgePanelSeeds(["grader"]),
     {
       rel: ["on_fail"],
       label: "On fail",
       kind: "enum",
-      enumValues: ["retry", "halt", "note"],
+      enumValues: ["retry", "halt", "note", "escalate"],
       requiresVersion: V040,
+      enumVersions: { escalate: V060 },
       description:
-        "retry re-prompts with the judge rationale (default), halt aborts the turn classified, note emits a trace event only.",
+        "retry re-prompts with the judge rationale (default), halt aborts the turn classified, note emits a trace event only, escalate re-runs the turn on a stronger arm.",
     },
     {
       rel: ["max_retries"],
@@ -762,6 +1147,14 @@ function evaluationFields(): FieldSeed[] {
       integer: true,
       requiresVersion: V040,
       description: "Hard cap on evaluation-triggered retries per turn (default 1, max 5).",
+    },
+    {
+      rel: ["allow_self_judge"],
+      label: "Allow self-judge",
+      kind: "boolean",
+      requiresVersion: V060,
+      description:
+        "Accept a judge that is also a serving arm (silences the judge-independence lint).",
     },
   ];
 }
@@ -1099,6 +1492,20 @@ function observabilityFields(): FieldSeed[] {
     slo("cost_per_hour_usd", "Cost per hour (USD)", "Cost burn ceiling per wall-clock hour."),
     slo("egress_block_rate", "Egress block rate", "Fractional egress-block-rate ceiling, e.g. 0.1."),
     slo("window_seconds", "Window (seconds)", "How long a breach must persist before mitigation fires (default 300).", true),
+    // 0.6.0 — the routing SLOs: how often turns escalate, how often the judge
+    // fails a turn, and how often the reward floor blocks a cheap arm.
+    {
+      ...slo("escalation_rate", "Escalation rate", "Fractional ceiling on turns that escalate to a stronger arm."),
+      requiresVersion: V060,
+    },
+    {
+      ...slo("judge_fail_rate", "Judge fail rate", "Fractional ceiling on turns the judge scores below threshold."),
+      requiresVersion: V060,
+    },
+    {
+      ...slo("floor_block_rate", "Floor block rate", "Fractional ceiling on routes the reward floor blocks."),
+      requiresVersion: V060,
+    },
     {
       rel: ["slo", "mitigation"],
       label: "Mitigation ladder",
@@ -1255,6 +1662,15 @@ function routingFields(schema: SpecSchema, target: string, base: SpecPath): Form
         placeholder: "writer:\n  - contains: publish\n    to: editor",
         description: "role -> list of { contains, to } handoff rules.",
       },
+      {
+        rel: ["model"],
+        label: "Router model",
+        kind: "string",
+        requiresVersion: V060,
+        placeholder: "claude-haiku-4-5",
+        description:
+          "The model (or $profile) the kind: llm router runs on; defaults to the crew model.",
+      },
     ]);
   }
   return yamlFallback(schema, base, "routing");
@@ -1267,9 +1683,9 @@ function routingFields(schema: SpecSchema, target: string, base: SpecPath): Form
  * `target`. `blockPath` is a Document path: `[]` for the spec-level core
  * fields (name/version + the target's own top-level scalars), `["agent"]` for
  * the agent block, `["steps", 0]` / `["nodes", "draft"]` / `["roles",
- * "writer"]` / `["edges", 1]` / `["hooks", 0]` for one collection entry
- * (sequence indexes as NUMBERS), and `["<key>"]` for any other top-level
- * block. Deeper paths under a collection resolve to that entry's form.
+ * "writer"]` / `["edges", 1]` / `["hooks", 0]` / `["models", "cheap"]` for one
+ * collection entry (sequence indexes as NUMBERS), and `["<key>"]` for any other
+ * top-level block. Deeper paths under a collection resolve to that entry's form.
  *
  * Uncataloged blocks degrade to ONE whole-block "yaml" field (description
  * from the schema's catalog, requiresVersion from its blockVersions), so
@@ -1302,7 +1718,8 @@ export function fieldsForBlock(
       : fields;
 
   // Collection entries: ["steps", 0], ["nodes", "draft"], ["roles", "w"],
-  // ["edges", 1], ["hooks", 0] (deeper paths resolve to the same entry).
+  // ["edges", 1], ["hooks", 0], ["models", "cheap"] (deeper paths resolve to
+  // the same entry).
   if (blockPath.length >= 2) {
     const base = blockPath.slice(0, 2);
     // A `kind: judge` step/node is a gate — its form is the judge sub-form.
@@ -1316,6 +1733,8 @@ export function fieldsForBlock(
     if (head === "roles") return marked(at(base, stepNodeRoleFields("role")));
     if (head === "edges") return marked(at(base, edgeFields()));
     if (head === "hooks") return marked(at(base, hookEntryFields()));
+    // One entry of the 0.6.0 `models:` registry, keyed by profile name.
+    if (head === "models") return marked(at(base, modelProfileFields()));
     // An entry of an uncataloged collection: yaml-edit the entry itself.
     return marked([
       { path: [...base], label: humanize(head), kind: "yaml", description: schema.blocks[head] ?? "" },
@@ -1338,7 +1757,23 @@ export function fieldsForBlock(
             placeholder:
               "docs:\n  transport: stdio\n  command: bunx\n  args: [my-mcp]\n  env:\n    API_KEY: $API_KEY",
             description:
-              "name -> { transport: stdio, command, args?, env? } or { transport: sse, url, headers? }.",
+              "name -> { transport: stdio, command, args?, env? } or { transport: sse, url, headers? }. Narrowing tool_flags (readOnly / destructive / requireJustification) need crewhaus >= 0.6.0.",
+          },
+        ]),
+      );
+    case "models":
+      // The registry as a whole: one record field. Editing ONE profile goes
+      // through the ["models", "<name>"] entry form above.
+      return marked(
+        at(base, [
+          {
+            rel: [],
+            label: "Model profiles",
+            kind: "record",
+            placeholder:
+              "cheap:\n  model: claude-haiku-4-5\n  tags: [cheap]\nstrong:\n  model: claude-opus-4-7\n  temperature: 0.2",
+            description:
+              "name -> one model profile; reference it as $name at any model slot (agent, steps, nodes, roles, judges, pool candidates).",
           },
         ]),
       );
@@ -1376,7 +1811,8 @@ export function fieldsForBlock(
       // failure_taxonomy, steps/nodes/roles/edges/hooks as WHOLE collections,
       // channels, retrieve, indexing, queue, voice, driver, dataset, graders,
       // tenants, triggers, game, chains, wallets, contracts,
-      // transaction_policy, tool_config, cli, parallel, … — yaml fallback.
+      // transaction_policy, tool_config, cli, parallel, expose, knowledge,
+      // plugins, watchme, schedule, … — yaml fallback.
       return yamlFallback(schema, base, head);
   }
 }

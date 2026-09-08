@@ -15,15 +15,19 @@
 // the embedded {@link FALLBACK_SCHEMA}. A successful fetch is re-cached.
 //
 // The embedded FALLBACK_SCHEMA is itself DERIVED from a checked-in snapshot of
-// that same `specJsonSchema()` output (./spec-schema-snapshot.json, generated
-// from factory `feat/loop-contract-0.4` @ 79251acd) through the same adapter —
-// so the offline catalog can never silently diverge in STRUCTURE from the real
-// grammar (which target shapes exist, and which blocks each accepts). The only
+// that same `specJsonSchema()` output (./spec-schema-snapshot.json) through the
+// same adapter — so the offline catalog can never silently diverge in STRUCTURE
+// from the real grammar (which target shapes exist, and which blocks each
+// accepts). The snapshot is GENERATED, never hand-edited: run
+// `bun scripts/regen-spec-schema.ts` from the repo root, which imports the
+// compiler's own `specJsonSchema()` and writes both the document and its
+// provenance sidecar (./spec-schema-snapshot.meta.json). The only
 // hand-maintained pieces are (a) a small friendly-description overlay layered
-// over the schema's terse/absent block descriptions and (b) the loop-contract
-// 0.4 block-version markers ({@link FALLBACK_BLOCK_VERSIONS}); a drift test
-// asserts every marked block still exists in the snapshot and that the
-// snapshot still carries exactly the 14 canonical targets.
+// over the schema's terse/absent block descriptions and (b) the block-version
+// markers ({@link FALLBACK_BLOCK_VERSIONS}); a drift test asserts every marked
+// block still exists in the snapshot, that every offered block has a
+// description, that the snapshot still carries exactly the 14 canonical
+// targets, and that the sidecar's digest still matches the snapshot bytes.
 //
 // Discipline (mirrors ./templates.ts / ./fleet.ts / ./github-spec-store.ts):
 // this file imports NOTHING from ./compiler or ./cloudflare — those pull in
@@ -34,6 +38,7 @@
 // interface — the PAGE backs it with IndexedDB; this lib stays
 // storage-agnostic and touches NO DOM. Unit tests run fully offline.
 
+import SNAPSHOT_META from "./spec-schema-snapshot.meta.json";
 import SNAPSHOT from "./spec-schema-snapshot.json";
 
 /** Injectable fetch seam, mirroring SpecFetch in ./github-spec-store.ts. */
@@ -168,7 +173,14 @@ function oneLine(text: string): string {
  */
 const BLOCK_DESCRIPTION_OVERLAY: Readonly<Record<string, string>> = {
   agent:
-    "The agent definition — model + instructions, plus (by target) max_tokens, thinking, streaming, rate_limits, model_fallbacks, tools.",
+    "The agent definition — model + instructions, plus (by target) max_tokens, thinking, streaming, rate_limits, model_fallbacks, temperature, and the routing family (model_tiers / model_pool / circuit_breaker).",
+  expose: "Serve this harness to other clients — as an MCP server over stdio or SSE.",
+  knowledge:
+    "Managed knowledge base — embedder + vector backend, the sources indexed into it, and how they are chunked and recalled.",
+  plugins: "Names of the studio/runtime plugins this harness activates.",
+  watchme:
+    "Observational learning — capture real interactions (full or mirrors), judge them, and distill guidance from what worked.",
+  schedule: "Scheduled self-run — a cron or every-interval trigger, with the instructions it wakes on.",
   tools: "Allow-list of built-in tool names the agent may call.",
   tool_config: "Per-tool configuration overrides for entries in tools.",
   mcp_servers: "MCP server definitions the harness may connect to (command/url + $ENV refs).",
@@ -219,29 +231,42 @@ const BLOCK_DESCRIPTION_OVERLAY: Readonly<Record<string, string>> = {
 };
 
 /**
- * Loop contract 0.4 — the hand-curated block-level version markers: exactly
- * the WHOLE top-level keys the deployed 0.3.x compiler-worker rejects as
- * unknown until factory 0.4.0 deploys. `limits`/`hooks` ride the nine
- * loop-running shapes, `parallel` is graph-only, and `evaluation` is the new
- * in-loop grader on cli/channel/managed. FIELD-level 0.4.0 markers (e.g.
- * `agent.thinking`, `compaction.threshold`, `edges[].when`,
- * `permissions.ask_mode`, and observability's new `trace`/`metrics`/`otel`
- * sub-blocks) live in ./form-model.ts's field catalog — this map only covers
- * whole blocks. NOTE: `observability` is a 0.3-era block (its `slo` shape ships
- * on the deployed line), so it stays UNMARKED here even though the Batch-E
- * snapshot extends it — marking the whole block would wrongly cascade "0.4.0"
- * onto its pre-existing `slo.*` fields via form-model's block-marker fallback.
+ * The hand-curated block-level version markers: exactly the WHOLE top-level
+ * keys the deployed 0.3.x compiler-worker rejects as unknown, each stamped with
+ * the crewhaus version that introduced it.
  *
- * Attached to the EMBEDDED fallback only: a live remote `/schema` is a 0.4+
- * compiler that natively validates every block it advertises, so
- * remote-derived schemas carry no markers. A drift test pins every key here to
- * an actual block in the snapshot.
+ * Loop contract 0.4: `limits`/`hooks` ride the nine loop-running shapes,
+ * `parallel` is graph-only, `evaluation` is the in-loop grader on
+ * cli/channel/managed, `expose`/`knowledge`/`plugins` came with the interop and
+ * context batches, `schedule` with the worker runtime, and `watchme` (0.4.1)
+ * with observational learning. Model hybrids 0.6.0: `models`, the per-model
+ * profile registry every model slot can reference as `$<name>`.
+ *
+ * FIELD-level markers (e.g. `agent.thinking`, `agent.temperature`,
+ * `compaction.threshold`, `edges[].when`, `permissions.ask_mode`,
+ * `model_pool.strategy`, the grader panel and the judge-gate fields) live in
+ * ./form-model.ts's field catalog — this map only covers whole blocks. NOTE:
+ * `observability` is a 0.3-era block (its `slo` shape ships on the deployed
+ * line), so it stays UNMARKED here even though later lines extend it — marking
+ * the whole block would wrongly cascade a marker onto its pre-existing `slo.*`
+ * fields via form-model's block-marker fallback.
+ *
+ * Attached to the EMBEDDED fallback only: a live remote `/schema` is a compiler
+ * that natively validates every block it advertises, so remote-derived schemas
+ * carry no markers. A drift test pins every key here to an actual block in the
+ * snapshot.
  */
 export const FALLBACK_BLOCK_VERSIONS: Readonly<Record<string, string>> = {
   limits: "0.4.0",
   hooks: "0.4.0",
   parallel: "0.4.0",
   evaluation: "0.4.0",
+  expose: "0.4.0",
+  knowledge: "0.4.0",
+  plugins: "0.4.0",
+  schedule: "0.4.0",
+  watchme: "0.4.1",
+  models: "0.6.0",
 };
 
 /**
@@ -321,8 +346,21 @@ export function specSchemaFromJsonSchema(
 
 // --- embedded fallback ---------------------------------------------------------
 
-/** Provenance stamp for the snapshot-derived embedded fallback. */
-export const FALLBACK_SCHEMA_VERSION = "fallback-0.4-79251acd";
+/**
+ * Provenance stamp for the snapshot-derived embedded fallback, DERIVED from
+ * the generated sidecar rather than pinned by hand: the `@crewhaus/spec`
+ * package version the snapshot was generated from, plus a short content digest
+ * of the snapshot bytes. Both move whenever `bun scripts/regen-spec-schema.ts`
+ * rewrites the snapshot, so the badge a Studio renders can never claim a line
+ * the embedded grammar is no longer on.
+ *
+ * The version is the compiler workspace's OWN stamp at generation time, which
+ * lags a release until factory's release-prep bumps it — a snapshot taken from
+ * an unreleased line therefore carries the previous release's number, and the
+ * digest is what actually identifies it. Re-running the generator after the
+ * release re-stamps both.
+ */
+export const FALLBACK_SCHEMA_VERSION = `fallback-${SNAPSHOT_META.specPackageVersion}-${SNAPSHOT_META.digest}`;
 
 /**
  * The embedded fallback schema: the checked-in `specJsonSchema()` snapshot

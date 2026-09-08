@@ -1,0 +1,6 @@
+{
+  "specPackageVersion": "0.5.8",
+  "digest": "e164db49",
+  "targets": 14,
+  "generator": "scripts/regen-spec-schema.ts"
+}

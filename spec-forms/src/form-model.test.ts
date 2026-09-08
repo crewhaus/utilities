@@ -195,11 +195,25 @@ describe("fieldsForBlock — agent", () => {
     }
   });
 
-  test("pipeline/voice/eval agents: only model+instructions (no max_tokens)", () => {
-    for (const target of ["pipeline", "voice", "eval", "onchain", "onchain-game"]) {
+  test("voice/eval/onchain agents: only model+instructions (no max_tokens, no routing)", () => {
+    for (const target of ["voice", "eval", "onchain", "onchain-game"]) {
       const fields = fieldsForBlock(S, target, ["agent"]);
       expect(fields.map((f) => f.path.at(-1))).toEqual(["model", "instructions"]);
     }
+  });
+
+  test("pooled agents (pipeline/research/batch/browser): pool + temperature, no tiers/breaker", () => {
+    for (const target of ["pipeline", "research", "batch", "browser"]) {
+      const fields = fieldsForBlock(S, target, ["agent"]);
+      expect(fieldAt(fields, ["agent", "temperature"]).requiresVersion).toBe("0.6.0");
+      expect(fieldAt(fields, ["agent", "model_pool", "candidates"]).kind).toBe("yaml");
+      expect(fields.some((f) => f.path.at(-1) === "model_tiers")).toBe(false);
+      expect(fields.some((f) => f.path.at(-1) === "circuit_breaker")).toBe(false);
+    }
+    // pipeline still has no max_tokens of its own.
+    expect(
+      fieldsForBlock(S, "pipeline", ["agent"]).some((f) => f.path.at(-1) === "max_tokens"),
+    ).toBe(false);
   });
 });
 
@@ -972,14 +986,31 @@ routing:
   });
 });
 
-// --- 0.4.0 marking sweep ----------------------------------------------------------------
+// --- version-marking sweep --------------------------------------------------------------
 
-describe("0.4.0 marking", () => {
-  test("markers are exactly '0.4.0' wherever they appear, across every target x block", () => {
+// Every marker the catalog may carry: the loop-contract-0.4 line, watchme's
+// 0.4.1 block, and the 0.6.0 per-model / hybrid surface. A marker outside this
+// set is a typo — the badge renders it verbatim as "needs crewhaus <version>".
+const KNOWN_MARKERS = new Set(["0.4.0", "0.4.1", "0.6.0"]);
+
+describe("version marking", () => {
+  test("every marker is a known crewhaus version, across every target x block", () => {
     for (const target of S.targets) {
       for (const key of S.blocksByTarget[target] ?? []) {
         for (const f of fieldsForBlock(S, target, [key])) {
-          if (f.requiresVersion !== undefined) expect(f.requiresVersion).toBe("0.4.0");
+          if (f.requiresVersion === undefined) continue;
+          expect({ path: f.path, known: KNOWN_MARKERS.has(f.requiresVersion) }).toEqual({
+            path: f.path,
+            known: true,
+          });
+        }
+        for (const f of fieldsForBlock(S, target, [key])) {
+          for (const version of Object.values(f.enumVersions ?? {})) {
+            expect({ path: f.path, known: KNOWN_MARKERS.has(version) }).toEqual({
+              path: f.path,
+              known: true,
+            });
+          }
         }
       }
     }
@@ -1027,12 +1058,54 @@ describe("fieldsForBlock — evaluation block", () => {
     const threshold = fieldAt(fields, ["evaluation", "threshold"]);
     expect(threshold.kind).toBe("number");
     expect(threshold.integer).toBeUndefined();
-    expect(fieldAt(fields, ["evaluation", "on_fail"]).enumValues).toEqual(["retry", "halt", "note"]);
+    expect(fieldAt(fields, ["evaluation", "on_fail"]).enumValues).toEqual([
+      "retry",
+      "halt",
+      "note",
+      "escalate",
+    ]);
     expect(fieldAt(fields, ["evaluation", "max_retries"]).integer).toBe(true);
-    // The whole evaluation block is 0.4.0.
-    for (const f of fields) expect(f.requiresVersion).toBe("0.4.0");
+    // The 0.4 block stays 0.4.0; only the 0.6.0 additions below say otherwise.
+    for (const f of fields) {
+      if (V060_EVALUATION_TAILS.has(String(f.path.at(-1)))) continue;
+      expect({ path: f.path, v: f.requiresVersion }).toEqual({ path: f.path, v: "0.4.0" });
+    }
+  });
+
+  test("0.6.0 grader panel + escalate + allow_self_judge ride the 0.4 block", () => {
+    const fields = fieldsForBlock(S, "cli", ["evaluation"]);
+    expect(fieldAt(fields, ["evaluation", "grader", "judges"]).kind).toBe("string-list");
+    expect(fieldAt(fields, ["evaluation", "grader", "repeats"]).integer).toBe(true);
+    expect(fieldAt(fields, ["evaluation", "grader", "temperature"]).kind).toBe("number");
+    expect(fieldAt(fields, ["evaluation", "grader", "target"]).enumValues).toEqual([
+      "output",
+      "transcript",
+    ]);
+    expect(fieldAt(fields, ["evaluation", "allow_self_judge"]).kind).toBe("boolean");
+    for (const path of [
+      ["evaluation", "grader", "judges"],
+      ["evaluation", "grader", "repeats"],
+      ["evaluation", "grader", "temperature"],
+      ["evaluation", "grader", "target"],
+      ["evaluation", "allow_self_judge"],
+    ]) {
+      expect(fieldAt(fields, path).requiresVersion).toBe("0.6.0");
+    }
+    // `escalate` is a 0.6.0 VALUE of a 0.4.0 field.
+    const onFail = fieldAt(fields, ["evaluation", "on_fail"]);
+    expect(onFail.requiresVersion).toBe("0.4.0");
+    expect(onFail.enumVersions).toEqual({ escalate: "0.6.0" });
   });
 });
+
+/** The 0.6.0 additions inside the (0.4.0-marked) evaluation block. */
+const V060_EVALUATION_TAILS = new Set([
+  "judges",
+  "repeats",
+  "temperature",
+  "target",
+  "allow_self_judge",
+]);
 
 describe("fieldsForBlock — judge steps/nodes (kind: judge)", () => {
   const JUDGE = { kind: "judge", judge: { criteria: "accurate" } };
@@ -1051,10 +1124,26 @@ describe("fieldsForBlock — judge steps/nodes (kind: judge)", () => {
       "continue",
     ]);
     expect(fieldAt(fields, ["steps", 2, "judge", "max_retries"]).integer).toBe(true);
-    for (const f of fields) expect(f.requiresVersion).toBe("0.4.0");
+    for (const f of fields) {
+      const tail = String(f.path.at(-1));
+      const expected =
+        V060_EVALUATION_TAILS.has(tail) || tail === "escalate_to" ? "0.6.0" : "0.4.0";
+      expect({ path: f.path, v: f.requiresVersion }).toEqual({ path: f.path, v: expected });
+    }
     // A judge step runs no agent turn — no instructions/tools of its own.
     expect(fields.some((f) => f.path.at(-1) === "instructions")).toBe(false);
     expect(fields.some((f) => f.path.at(-1) === "tools")).toBe(false);
+  });
+
+  test("the judge gate carries the 0.6.0 panel + escalate_to", () => {
+    const fields = fieldsForBlock(S, "graph", ["nodes", "gate"], JUDGE);
+    for (const key of ["judges", "repeats", "temperature", "target", "escalate_to"]) {
+      expect(fieldAt(fields, ["nodes", "gate", "judge", key]).requiresVersion).toBe("0.6.0");
+    }
+    expect(fieldAt(fields, ["nodes", "gate", "judge", "target"]).enumValues).toEqual([
+      "output",
+      "transcript",
+    ]);
   });
 
   test("a graph judge node gets the judge sub-form WITHOUT a name field (map key is the name)", () => {
@@ -1101,14 +1190,27 @@ describe("fieldsForBlock — permissions.ask_mode + observability", () => {
       expect(fieldAt(fields, ["observability", key]).kind).toBe("boolean");
     }
     expect(fieldAt(fields, ["observability", "otel", "endpoint"]).kind).toBe("string");
-    // The new sub-blocks are 0.4.0; the pre-existing slo.* fields stay unmarked.
+    // The new sub-blocks are 0.4.0; the pre-existing slo.* fields stay
+    // unmarked; the three routing SLOs are 0.6.0.
     const newRoots = new Set(["trace", "metrics", "cost", "alerts", "incidents", "otel"]);
+    const routingSlos = new Set(["escalation_rate", "judge_fail_rate", "floor_block_rate"]);
     for (const f of fields) {
-      const isNew = newRoots.has(String(f.path[1]));
-      expect({ path: f.path, v: f.requiresVersion }).toEqual({
-        path: f.path,
-        v: isNew ? "0.4.0" : undefined,
-      });
+      const expected = routingSlos.has(String(f.path.at(-1)))
+        ? "0.6.0"
+        : newRoots.has(String(f.path[1]))
+          ? "0.4.0"
+          : undefined;
+      expect({ path: f.path, v: f.requiresVersion }).toEqual({ path: f.path, v: expected });
+    }
+  });
+
+  test("observability gains the 0.6.0 routing SLOs", () => {
+    const fields = fieldsForBlock(S, "cli", ["observability"]);
+    for (const key of ["escalation_rate", "judge_fail_rate", "floor_block_rate"]) {
+      const field = fieldAt(fields, ["observability", "slo", key]);
+      expect(field.kind).toBe("number");
+      expect(field.integer).toBeUndefined();
+      expect(field.requiresVersion).toBe("0.6.0");
     }
   });
 });
@@ -1187,5 +1289,131 @@ describe("structural ops — addJudgeNode", () => {
     const unknown = addJudgeNode(doc, "ghost");
     expect(unknown.ok).toBe(false);
     if (!unknown.ok) expect(unknown.error).toContain('no node named "ghost"');
+  });
+});
+
+// --- 0.6.0: per-model settings + hybrid routing -------------------------------------
+
+describe("fieldsForBlock — models registry (0.6.0)", () => {
+  test("the whole block is one record field, marked 0.6.0 by the schema", () => {
+    const fields = fieldsForBlock(S, "cli", ["models"]);
+    expect(fields.length).toBe(1);
+    expect(fields[0]?.kind).toBe("record");
+    expect(fields[0]?.requiresVersion).toBe("0.6.0");
+    expect(fields[0]?.description).toContain("$name");
+  });
+
+  test("one profile entry gets the profile sub-form; model is required", () => {
+    const fields = fieldsForBlock(S, "cli", ["models", "cheap"]);
+    expect(fieldAt(fields, ["models", "cheap", "model"]).required).toBe(true);
+    expect(fieldAt(fields, ["models", "cheap", "tags"]).kind).toBe("string-list");
+    expect(fieldAt(fields, ["models", "cheap", "temperature"]).kind).toBe("number");
+    expect(fieldAt(fields, ["models", "cheap", "thinking", "effort"]).enumValues).toEqual([
+      "low",
+      "medium",
+      "high",
+    ]);
+    expect(fieldAt(fields, ["models", "cheap", "tools"]).suggestions).toEqual(BUILTIN_TOOL_NAMES);
+    expect(fieldAt(fields, ["models", "cheap", "permissions", "deny"]).kind).toBe("string-list");
+    expect(fieldAt(fields, ["models", "cheap", "caching"]).enumValues).toEqual(["prefer", "off"]);
+    expect(fieldAt(fields, ["models", "cheap", "cost", "max_usd"]).kind).toBe("number");
+    expect(fieldAt(fields, ["models", "cheap", "fallbacks"]).kind).toBe("string-list");
+    // The whole registry is 0.6.0, so every profile field inherits the marker.
+    for (const f of fields) expect(f.requiresVersion).toBe("0.6.0");
+  });
+
+  test("a profile edit writes through the Document (comments preserved)", () => {
+    const doc = docOf(CLI_SPEC);
+    const fields = fieldsForBlock(S, "cli", ["models", "cheap"]);
+    expect(applyFieldEdit(doc, fieldAt(fields, ["models", "cheap", "model"]), "claude-haiku-4-5"))
+      .toEqual({ ok: true });
+    expect(applyFieldEdit(doc, fieldAt(fields, ["models", "cheap", "tags"]), "cheap, fast")).toEqual(
+      { ok: true },
+    );
+    const text = reserialized(doc);
+    expect(text).toContain("# the reasoning model");
+    const model = parseSpecModel(text).model as Record<string, any>;
+    expect(model["models"]).toEqual({ cheap: { model: "claude-haiku-4-5", tags: ["cheap", "fast"] } });
+  });
+});
+
+describe("fieldsForBlock — hybrid routing family (0.6.0)", () => {
+  test("an interactive agent gains temperature, tiers, breaker and the pool", () => {
+    const fields = fieldsForBlock(S, "cli", ["agent"]);
+    expect(fieldAt(fields, ["agent", "temperature"]).requiresVersion).toBe("0.6.0");
+    // Pre-0.6 routing blocks are surfaced but carry no marker.
+    expect(fieldAt(fields, ["agent", "model_tiers"]).requiresVersion).toBeUndefined();
+    expect(fieldAt(fields, ["agent", "circuit_breaker"]).requiresVersion).toBeUndefined();
+    expect(fieldAt(fields, ["agent", "model_pool", "candidates"]).requiresVersion).toBeUndefined();
+    const policy = fieldAt(fields, ["agent", "model_pool", "policy"]);
+    expect(policy.enumValues).toEqual(["static", "heuristic", "learned", "classifier"]);
+    expect(policy.enumVersions).toEqual({ classifier: "0.6.0" });
+    // The hybrid siblings are all 0.6.0.
+    for (const key of ["rules", "directives", "classifier", "strategy", "reward", "scope"]) {
+      expect(fieldAt(fields, ["agent", "model_pool", key]).requiresVersion).toBe("0.6.0");
+    }
+  });
+
+  test("steps, nodes and roles carry the same family", () => {
+    for (const [target, path] of [
+      ["workflow", ["steps", 0]],
+      ["graph", ["nodes", "draft"]],
+      ["crew", ["roles", "writer"]],
+    ] as const) {
+      const fields = fieldsForBlock(S, target, [...path]);
+      expect(fieldAt(fields, [...path, "temperature"]).requiresVersion).toBe("0.6.0");
+      expect(fieldAt(fields, [...path, "model_pool", "strategy"]).requiresVersion).toBe("0.6.0");
+      expect(fieldAt(fields, [...path, "model_tiers"]).kind).toBe("record");
+    }
+  });
+
+  test("sub_agents is offered on cli/channel agents and crew roles", () => {
+    for (const target of ["cli", "channel"]) {
+      expect(fieldAt(fieldsForBlock(S, target, ["agent"]), ["agent", "sub_agents"]).kind).toBe(
+        "record",
+      );
+    }
+    const role = fieldAt(fieldsForBlock(S, "crew", ["roles", "writer"]), [
+      "roles",
+      "writer",
+      "sub_agents",
+    ]);
+    expect(role.description).toContain("0.6.0");
+    // managed has no sub_agents block.
+    expect(
+      fieldsForBlock(S, "managed", ["agent"]).some((f) => f.path.at(-1) === "sub_agents"),
+    ).toBe(false);
+  });
+
+  test("budget gains scope + judge_share; crew routing gains the router model", () => {
+    const budget = fieldsForBlock(S, "cli", ["budget"]);
+    expect(fieldAt(budget, ["budget", "scope"]).enumValues).toEqual(["run", "session"]);
+    expect(fieldAt(budget, ["budget", "scope"]).requiresVersion).toBe("0.6.0");
+    expect(fieldAt(budget, ["budget", "judge_share"]).requiresVersion).toBe("0.6.0");
+    expect(fieldAt(budget, ["budget", "usd"]).requiresVersion).toBeUndefined();
+
+    const routing = fieldsForBlock(S, "crew", ["routing"]);
+    const routerModel = fieldAt(routing, ["routing", "model"]);
+    expect(routerModel.kind).toBe("string");
+    expect(routerModel.requiresVersion).toBe("0.6.0");
+  });
+
+  test("mcp_servers mentions the 0.6.0 narrowing tool_flags", () => {
+    const fields = fieldsForBlock(S, "cli", ["mcp_servers"]);
+    expect(fields[0]?.description).toContain("tool_flags");
+  });
+
+  test("a pool edit round-trips through the Document", () => {
+    const doc = docOf(CLI_SPEC);
+    const fields = fieldsForBlock(S, "cli", ["agent"]);
+    expect(
+      applyFieldEdit(doc, fieldAt(fields, ["agent", "model_pool", "policy"]), "classifier"),
+    ).toEqual({ ok: true });
+    expect(
+      applyFieldEdit(doc, fieldAt(fields, ["agent", "model_pool", "directives"]), "true"),
+    ).toEqual({ ok: true });
+    const model = parseSpecModel(reserialized(doc)).model as Record<string, any>;
+    expect(model["agent"]["model_pool"]).toEqual({ policy: "classifier", directives: true });
+    expect(model["agent"]["model"]).toBe("claude-haiku-4-5-20251001");
   });
 });

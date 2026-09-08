@@ -10,5 +10,9 @@
     "noUncheckedIndexedAccess": false,
     "noPropertyAccessFromIndexSignature": false
   },
-  "include": ["src/**/*.ts", "src/spec-schema-snapshot.json"]
+  "include": [
+    "src/**/*.ts",
+    "src/spec-schema-snapshot.json",
+    "src/spec-schema-snapshot.meta.json"
+  ]
 }

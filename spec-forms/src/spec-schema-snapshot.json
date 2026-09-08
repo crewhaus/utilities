@@ -17,6 +17,251 @@
           "type": "string",
           "const": "cli"
         },
+        "models": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "model": {
+                "type": "string",
+                "minLength": 1,
+                "description": "model-router grammar string, or cheapest | strongest (never a $ref)"
+              },
+              "tags": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "max_tokens": {
+                "type": "integer",
+                "exclusiveMinimum": 0
+              },
+              "thinking": {
+                "type": "object",
+                "properties": {
+                  "budget_tokens": {
+                    "type": "integer",
+                    "minimum": 1024
+                  },
+                  "effort": {
+                    "type": "string",
+                    "enum": [
+                      "low",
+                      "medium",
+                      "high"
+                    ]
+                  }
+                },
+                "additionalProperties": false
+              },
+              "temperature": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 2,
+                "description": "sampling temperature (0–2); mutually exclusive with thinking on the same block"
+              },
+              "instructions": {
+                "type": "string",
+                "minLength": 1,
+                "description": "per-model instructions overlay, appended when this model serves"
+              },
+              "tools": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "description": "subset of the shape's tools this model may see; [] = no shape tools"
+              },
+              "tool_config": {
+                "type": "object",
+                "additionalProperties": {},
+                "propertyNames": {
+                  "minLength": 1
+                }
+              },
+              "permissions": {
+                "type": "object",
+                "properties": {
+                  "deny": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "ask": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  }
+                },
+                "additionalProperties": false
+              },
+              "rate_limits": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "object",
+                  "properties": {
+                    "rpm": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0
+                    },
+                    "burst": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0
+                    }
+                  },
+                  "required": [
+                    "rpm"
+                  ],
+                  "additionalProperties": false
+                },
+                "propertyNames": {
+                  "minLength": 1
+                }
+              },
+              "limits": {
+                "type": "object",
+                "properties": {
+                  "model_call_timeout_ms": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0
+                  }
+                },
+                "additionalProperties": false
+              },
+              "caching": {
+                "type": "string",
+                "enum": [
+                  "prefer",
+                  "off"
+                ]
+              },
+              "cost": {
+                "type": "object",
+                "properties": {
+                  "max_usd": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  }
+                },
+                "required": [
+                  "max_usd"
+                ],
+                "additionalProperties": false
+              },
+              "requires": {
+                "type": "object",
+                "properties": {
+                  "tool_use": {
+                    "type": "boolean"
+                  },
+                  "vision": {
+                    "type": "boolean"
+                  },
+                  "thinking": {
+                    "type": "boolean"
+                  },
+                  "web_search": {
+                    "type": "boolean"
+                  },
+                  "context_window_gte": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "description": "the model's context window must be KNOWN and at least this many tokens"
+                  },
+                  "max_output_tokens_gte": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "description": "the model's max output must be KNOWN and at least this many tokens"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "capabilities": {
+                "type": "object",
+                "properties": {
+                  "tool_use": {
+                    "type": "boolean"
+                  },
+                  "vision": {
+                    "type": "boolean"
+                  },
+                  "thinking": {
+                    "type": "boolean"
+                  },
+                  "web_search": {
+                    "type": "boolean"
+                  },
+                  "caching": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "explicit",
+                          "automatic"
+                        ]
+                      },
+                      {
+                        "type": "boolean",
+                        "const": false
+                      }
+                    ]
+                  },
+                  "context_window": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0
+                  },
+                  "max_output_tokens": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0
+                  }
+                },
+                "additionalProperties": false
+              },
+              "fallbacks": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "minItems": 1
+              },
+              "circuit_breaker": {
+                "type": "object",
+                "properties": {
+                  "failureThreshold": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0
+                  },
+                  "windowMs": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0
+                  },
+                  "cooldownMs": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "model"
+            ],
+            "additionalProperties": false,
+            "description": "one model profile: everything that can differ per model, declared once"
+          },
+          "propertyNames": {
+            "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+          },
+          "description": "0.6.0: the model-profile registry; any model slot may reference a profile as $<name>"
+        },
         "agent": {
           "type": "object",
           "properties": {
@@ -33,48 +278,16 @@
               "exclusiveMinimum": 0
             },
             "thinking": {
-              "type": "object",
-              "properties": {
-                "budget_tokens": {
-                  "type": "integer",
-                  "minimum": 1024
-                },
-                "effort": {
-                  "type": "string",
-                  "enum": [
-                    "low",
-                    "medium",
-                    "high"
-                  ]
-                }
-              },
-              "additionalProperties": false
+              "$ref": "#/definitions/cli/properties/models/additionalProperties/properties/thinking"
+            },
+            "temperature": {
+              "$ref": "#/definitions/cli/properties/models/additionalProperties/properties/temperature"
             },
             "streaming": {
               "type": "boolean"
             },
             "rate_limits": {
-              "type": "object",
-              "additionalProperties": {
-                "type": "object",
-                "properties": {
-                  "rpm": {
-                    "type": "integer",
-                    "exclusiveMinimum": 0
-                  },
-                  "burst": {
-                    "type": "integer",
-                    "exclusiveMinimum": 0
-                  }
-                },
-                "required": [
-                  "rpm"
-                ],
-                "additionalProperties": false
-              },
-              "propertyNames": {
-                "minLength": 1
-              }
+              "$ref": "#/definitions/cli/properties/models/additionalProperties/properties/rate_limits"
             },
             "model_fallbacks": {
               "type": "array",
@@ -85,22 +298,7 @@
               "minItems": 1
             },
             "circuit_breaker": {
-              "type": "object",
-              "properties": {
-                "failureThreshold": {
-                  "type": "integer",
-                  "exclusiveMinimum": 0
-                },
-                "windowMs": {
-                  "type": "integer",
-                  "exclusiveMinimum": 0
-                },
-                "cooldownMs": {
-                  "type": "integer",
-                  "exclusiveMinimum": 0
-                }
-              },
-              "additionalProperties": false
+              "$ref": "#/definitions/cli/properties/models/additionalProperties/properties/circuit_breaker"
             },
             "model_tiers": {
               "type": "object",
@@ -159,6 +357,55 @@
                           "minLength": 1
                         },
                         "default": []
+                      },
+                      "max_tokens": {
+                        "$ref": "#/definitions/cli/properties/models/additionalProperties/properties/max_tokens"
+                      },
+                      "thinking": {
+                        "$ref": "#/definitions/cli/properties/models/additionalProperties/properties/thinking"
+                      },
+                      "temperature": {
+                        "$ref": "#/definitions/cli/properties/models/additionalProperties/properties/temperature"
+                      },
+                      "instructions": {
+                        "$ref": "#/definitions/cli/properties/models/additionalProperties/properties/instructions"
+                      },
+                      "tools": {
+                        "$ref": "#/definitions/cli/properties/models/additionalProperties/properties/tools"
+                      },
+                      "tool_config": {
+                        "$ref": "#/definitions/cli/properties/models/additionalProperties/properties/tool_config"
+                      },
+                      "permissions": {
+                        "$ref": "#/definitions/cli/properties/models/additionalProperties/properties/permissions"
+                      },
+                      "rate_limits": {
+                        "$ref": "#/definitions/cli/properties/models/additionalProperties/properties/rate_limits"
+                      },
+                      "limits": {
+                        "$ref": "#/definitions/cli/properties/models/additionalProperties/properties/limits"
+                      },
+                      "caching": {
+                        "$ref": "#/definitions/cli/properties/models/additionalProperties/properties/caching"
+                      },
+                      "cost": {
+                        "$ref": "#/definitions/cli/properties/models/additionalProperties/properties/cost"
+                      },
+                      "requires": {
+                        "$ref": "#/definitions/cli/properties/models/additionalProperties/properties/requires"
+                      },
+                      "capabilities": {
+                        "$ref": "#/definitions/cli/properties/models/additionalProperties/properties/capabilities"
+                      },
+                      "fallbacks": {
+                        "$ref": "#/definitions/cli/properties/models/additionalProperties/properties/fallbacks"
+                      },
+                      "circuit_breaker": {
+                        "$ref": "#/definitions/cli/properties/models/additionalProperties/properties/circuit_breaker"
+                      },
+                      "enabled": {
+                        "type": "boolean",
+                        "const": false
                       }
                     },
                     "required": [
@@ -173,7 +420,8 @@
                   "enum": [
                     "static",
                     "heuristic",
-                    "learned"
+                    "learned",
+                    "classifier"
                   ],
                   "default": "heuristic"
                 },
@@ -256,6 +504,275 @@
                     }
                   },
                   "additionalProperties": false
+                },
+                "directives": {
+                  "type": "boolean",
+                  "description": "0.6.0: accept per-message /model directives (default false on every shape)"
+                },
+                "rules": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "$ref": "#/definitions/cli/properties/name"
+                      },
+                      "when": {
+                        "type": "object",
+                        "properties": {
+                          "has_images": {
+                            "type": "boolean"
+                          },
+                          "message_matches": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "user_text_chars_gt": {
+                            "type": "integer",
+                            "minimum": 0
+                          },
+                          "context_tokens_gt": {
+                            "type": "integer",
+                            "minimum": 0
+                          },
+                          "tool_in_play": {
+                            "type": "boolean"
+                          },
+                          "channel": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "budget_spent_ratio_gt": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1
+                          },
+                          "turn_index_lt": {
+                            "type": "integer",
+                            "exclusiveMinimum": 0
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      "use": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "minLength": 1,
+                            "description": "a candidate tag or a $profile from the roster"
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "requires": {
+                                "$ref": "#/definitions/cli/properties/models/additionalProperties/properties/requires"
+                              }
+                            },
+                            "required": [
+                              "requires"
+                            ],
+                            "additionalProperties": false,
+                            "description": "route to a candidate satisfying this capability requirement"
+                          }
+                        ]
+                      },
+                      "enabled": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "when",
+                      "use"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "minItems": 1
+                },
+                "classifier": {
+                  "type": "object",
+                  "properties": {
+                    "model": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "labels": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "propertyNames": {
+                        "minLength": 1
+                      }
+                    },
+                    "max_tokens": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0
+                    }
+                  },
+                  "required": [
+                    "model",
+                    "labels"
+                  ],
+                  "additionalProperties": false
+                },
+                "strategy": {
+                  "type": "object",
+                  "properties": {
+                    "cascade": {
+                      "type": "object",
+                      "properties": {
+                        "draft": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "escalate_to": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "clean_prompt": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "draft",
+                        "escalate_to"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "guide": {
+                      "type": "object",
+                      "properties": {
+                        "model": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "every": {
+                          "type": "string",
+                          "enum": [
+                            "first_turn",
+                            "turn"
+                          ]
+                        },
+                        "max_tokens": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0
+                        },
+                        "budget_usd": {
+                          "type": "number",
+                          "exclusiveMinimum": 0
+                        }
+                      },
+                      "required": [
+                        "model"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "shadow": {
+                      "type": "object",
+                      "properties": {
+                        "candidate": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "sample_rate": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1
+                        },
+                        "grade_with": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "required": [
+                        "candidate"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "committee": {
+                      "type": "object",
+                      "properties": {
+                        "members": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "minItems": 2
+                        },
+                        "judge": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "escalate_on_disagreement": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "required": [
+                        "members"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "model_directed": {
+                      "type": "boolean"
+                    },
+                    "max_escalations": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "reward": {
+                  "type": "object",
+                  "properties": {
+                    "quality_source": {
+                      "type": "string",
+                      "enum": [
+                        "none",
+                        "in_loop",
+                        "shadow",
+                        "promoted"
+                      ]
+                    },
+                    "priors": {
+                      "type": "string",
+                      "enum": [
+                        "none",
+                        "eval"
+                      ]
+                    },
+                    "floor": {
+                      "type": "object",
+                      "properties": {
+                        "arm": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "confidence": {
+                          "type": "number",
+                          "exclusiveMinimum": 0,
+                          "exclusiveMaximum": 1
+                        },
+                        "tolerance": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "reset_on_profile_change": {
+                      "type": "boolean"
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "scope": {
+                  "$ref": "#/definitions/cli/properties/name"
                 }
               },
               "required": [
@@ -324,6 +841,57 @@
                   },
                   "inherit_bypass": {
                     "type": "boolean"
+                  },
+                  "federation": {
+                    "type": "object",
+                    "properties": {
+                      "url": {
+                        "type": "string",
+                        "format": "uri"
+                      }
+                    },
+                    "required": [
+                      "url"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "model_fallbacks": {
+                    "$ref": "#/definitions/cli/properties/agent/properties/model_fallbacks"
+                  },
+                  "circuit_breaker": {
+                    "$ref": "#/definitions/cli/properties/models/additionalProperties/properties/circuit_breaker"
+                  },
+                  "model_tiers": {
+                    "$ref": "#/definitions/cli/properties/agent/properties/model_tiers"
+                  },
+                  "model_pool": {
+                    "$ref": "#/definitions/cli/properties/agent/properties/model_pool"
+                  },
+                  "thinking": {
+                    "$ref": "#/definitions/cli/properties/models/additionalProperties/properties/thinking"
+                  },
+                  "max_tokens": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0
+                  },
+                  "temperature": {
+                    "$ref": "#/definitions/cli/properties/models/additionalProperties/properties/temperature"
+                  },
+                  "budget_share": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "maximum": 1
+                  },
+                  "inherit_routing": {
+                    "type": "boolean"
+                  },
+                  "allowed_profiles": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "minItems": 1
                   }
                 },
                 "required": [
@@ -352,11 +920,7 @@
           }
         },
         "tool_config": {
-          "type": "object",
-          "additionalProperties": {},
-          "propertyNames": {
-            "minLength": 1
-          }
+          "$ref": "#/definitions/cli/properties/models/additionalProperties/properties/tool_config"
         },
         "mcp_servers": {
           "type": "object",
@@ -384,6 +948,42 @@
                     "additionalProperties": {
                       "type": "string"
                     }
+                  },
+                  "required": {
+                    "type": "boolean"
+                  },
+                  "tool_flags": {
+                    "type": "object",
+                    "properties": {
+                      "defaults": {
+                        "type": "object",
+                        "properties": {
+                          "readOnly": {
+                            "type": "boolean",
+                            "const": true
+                          },
+                          "destructive": {
+                            "type": "boolean",
+                            "const": true
+                          },
+                          "requireJustification": {
+                            "type": "boolean",
+                            "const": true
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      "per_tool": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "$ref": "#/definitions/cli/properties/mcp_servers/additionalProperties/anyOf/0/properties/tool_flags/properties/defaults"
+                        },
+                        "propertyNames": {
+                          "minLength": 1
+                        }
+                      }
+                    },
+                    "additionalProperties": false
                   }
                 },
                 "required": [
@@ -408,6 +1008,12 @@
                     "additionalProperties": {
                       "type": "string"
                     }
+                  },
+                  "required": {
+                    "$ref": "#/definitions/cli/properties/mcp_servers/additionalProperties/anyOf/0/properties/required"
+                  },
+                  "tool_flags": {
+                    "$ref": "#/definitions/cli/properties/mcp_servers/additionalProperties/anyOf/0/properties/tool_flags"
                   }
                 },
                 "required": [
@@ -615,6 +1221,19 @@
               "default": {
                 "action": "stop"
               }
+            },
+            "scope": {
+              "type": "string",
+              "enum": [
+                "run",
+                "session"
+              ]
+            },
+            "judge_share": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "description": "fraction of usd the auxiliary model calls (judge, compaction, guide, …) may spend; default 0.3"
             }
           },
           "required": [
@@ -714,6 +1333,42 @@
             "additionalProperties": false
           }
         },
+        "expose": {
+          "type": "object",
+          "properties": {
+            "mcp": {
+              "type": "object",
+              "properties": {
+                "transport": {
+                  "type": "string",
+                  "enum": [
+                    "stdio",
+                    "sse"
+                  ]
+                },
+                "tools": {
+                  "type": "string",
+                  "enum": [
+                    "chat",
+                    "per-subagent"
+                  ]
+                }
+              },
+              "required": [
+                "transport"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "plugins": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
         "evaluation": {
           "type": "object",
           "properties": {
@@ -729,12 +1384,41 @@
                     "model": {
                       "type": "string",
                       "minLength": 1,
-                      "description": "judge model id; defaults to the shape's primary model (the cheapest sentinel resolves at compile time)"
+                      "description": "judge model id or $profile ref; defaults to the shape's primary model (the cheapest sentinel resolves at compile time)"
                     },
                     "criteria": {
                       "type": "string",
                       "minLength": 1,
                       "description": "what a passing reply must satisfy — the judge scores the final text against this"
+                    },
+                    "judges": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "minItems": 1,
+                      "description": "judge PANEL: model ids (or $profile refs) whose verdicts are folded; mutually exclusive with model"
+                    },
+                    "repeats": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9,
+                      "description": "repeat verdicts per judge, folded by median (default 1)"
+                    },
+                    "temperature": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 2,
+                      "description": "pinned judge sampling temperature (0 recommended for stable verdicts)"
+                    },
+                    "target": {
+                      "type": "string",
+                      "enum": [
+                        "output",
+                        "transcript"
+                      ],
+                      "description": "what the judge grades: the final text (output, default) or the run trajectory"
                     }
                   },
                   "required": [
@@ -797,15 +1481,20 @@
               "enum": [
                 "retry",
                 "halt",
-                "note"
+                "note",
+                "escalate"
               ],
-              "description": "below-threshold behaviour: retry re-prompts with the judge rationale (default), halt aborts the turn classified, note emits a trace event only"
+              "description": "below-threshold behaviour: retry re-prompts with the judge rationale (default), halt aborts the turn classified, note emits a trace event only, escalate (0.6.0) re-runs the turn on the pool's strategy.cascade.escalate_to candidate (else the strongest candidate)"
             },
             "max_retries": {
               "type": "integer",
               "minimum": 1,
               "maximum": 5,
               "description": "hard cap on evaluation-triggered retries per turn (default 1)"
+            },
+            "allow_self_judge": {
+              "type": "boolean",
+              "description": "0.6.0: accept a judge that is also a serving arm (silences the judge-independence lint)"
             }
           },
           "required": [
@@ -899,12 +1588,30 @@
               "exclusiveMinimum": 0
             },
             "autoRecall": {
-              "type": "boolean"
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "session-start",
+                    "per-turn"
+                  ]
+                }
+              ]
+            },
+            "refreshEvery": {
+              "type": "integer",
+              "exclusiveMinimum": 0
             },
             "recallK": {
               "type": "integer",
               "exclusiveMinimum": 0,
               "maximum": 50
+            },
+            "sessionRecall": {
+              "type": "boolean"
             },
             "wiki": {
               "type": "object",
@@ -959,6 +1666,70 @@
               "additionalProperties": false
             }
           },
+          "additionalProperties": false
+        },
+        "knowledge": {
+          "type": "object",
+          "properties": {
+            "embedder": {
+              "type": "string",
+              "minLength": 1
+            },
+            "vector_backend": {
+              "type": "string",
+              "enum": [
+                "in-memory",
+                "lance",
+                "qdrant",
+                "pinecone",
+                "weaviate"
+              ]
+            },
+            "sources": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "glob": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "url": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "additionalProperties": false
+              },
+              "minItems": 1
+            },
+            "chunk": {
+              "type": "object",
+              "properties": {
+                "size": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0
+                },
+                "overlap": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              },
+              "additionalProperties": false
+            },
+            "default_k": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 50
+            }
+          },
+          "required": [
+            "sources"
+          ],
           "additionalProperties": false
         },
         "continuity": {
@@ -1033,6 +1804,10 @@
                     "shared"
                   ]
                 },
+                "space": {
+                  "type": "string",
+                  "minLength": 1
+                },
                 "goals": {
                   "type": "boolean"
                 },
@@ -1046,6 +1821,9 @@
                       "pattern": "^[a-z][a-z0-9-]{2,31}$"
                     }
                   ]
+                },
+                "messaging": {
+                  "type": "boolean"
                 }
               },
               "required": [
@@ -1140,6 +1918,21 @@
                   "minimum": 0,
                   "maximum": 1
                 },
+                "escalation_rate": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "judge_fail_rate": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "floor_block_rate": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
                 "window_seconds": {
                   "type": "integer",
                   "exclusiveMinimum": 0
@@ -1207,6 +2000,58 @@
           },
           "additionalProperties": false
         },
+        "watchme": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": true
+            },
+            "capture": {
+              "type": "string",
+              "enum": [
+                "full",
+                "mirrors"
+              ],
+              "default": "full"
+            },
+            "judge": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string",
+                  "minLength": 1,
+                  "default": "claude-haiku-4-5"
+                },
+                "sample_rate": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1,
+                  "default": 0.15
+                },
+                "budget_usd": {
+                  "type": "number",
+                  "minimum": 0,
+                  "default": 0
+                }
+              },
+              "additionalProperties": false
+            },
+            "scope": {
+              "type": "string",
+              "enum": [
+                "harness",
+                "user"
+              ],
+              "default": "harness"
+            },
+            "share": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "additionalProperties": false
+        },
         "cli": {
           "type": "object",
           "properties": {
@@ -1237,10 +2082,7 @@
             },
             "tui": {
               "type": "string",
-              "enum": [
-                "basic",
-                "rich"
-              ],
+              "const": "basic",
               "default": "basic"
             }
           },
@@ -1470,6 +2312,9 @@
           "type": "string",
           "const": "workflow"
         },
+        "models": {
+          "$ref": "#/definitions/cli/properties/models"
+        },
         "model": {
           "type": "string",
           "minLength": 1
@@ -1497,7 +2342,10 @@
                     "exclusiveMinimum": 0
                   },
                   "thinking": {
-                    "$ref": "#/definitions/cli/properties/agent/properties/thinking"
+                    "$ref": "#/definitions/cli/properties/models/additionalProperties/properties/thinking"
+                  },
+                  "temperature": {
+                    "$ref": "#/definitions/cli/properties/models/additionalProperties/properties/temperature"
                   },
                   "tools": {
                     "type": "array",
@@ -1507,7 +2355,19 @@
                     }
                   },
                   "tool_config": {
-                    "$ref": "#/definitions/cli/properties/tool_config"
+                    "$ref": "#/definitions/cli/properties/models/additionalProperties/properties/tool_config"
+                  },
+                  "model_fallbacks": {
+                    "$ref": "#/definitions/cli/properties/agent/properties/model_fallbacks"
+                  },
+                  "circuit_breaker": {
+                    "$ref": "#/definitions/cli/properties/models/additionalProperties/properties/circuit_breaker"
+                  },
+                  "model_tiers": {
+                    "$ref": "#/definitions/cli/properties/agent/properties/model_tiers"
+                  },
+                  "model_pool": {
+                    "$ref": "#/definitions/cli/properties/agent/properties/model_pool"
                   }
                 },
                 "required": [
@@ -1537,7 +2397,7 @@
                       "model": {
                         "type": "string",
                         "minLength": 1,
-                        "description": "judge model id; defaults to the shape's top-level model"
+                        "description": "judge model id or $profile ref; defaults to the shape's top-level model"
                       },
                       "threshold": {
                         "type": "number",
@@ -1559,6 +2419,23 @@
                         "minimum": 1,
                         "maximum": 5,
                         "description": "hard cap on judge-triggered re-runs of the gated step/node (default 1)"
+                      },
+                      "judges": {
+                        "$ref": "#/definitions/cli/properties/evaluation/properties/grader/anyOf/0/properties/judges"
+                      },
+                      "repeats": {
+                        "$ref": "#/definitions/cli/properties/evaluation/properties/grader/anyOf/0/properties/repeats"
+                      },
+                      "temperature": {
+                        "$ref": "#/definitions/cli/properties/evaluation/properties/grader/anyOf/0/properties/temperature"
+                      },
+                      "target": {
+                        "$ref": "#/definitions/cli/properties/evaluation/properties/grader/anyOf/0/properties/target"
+                      },
+                      "escalate_to": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "0.6.0: pool tag or $profile the retry_previous re-run is forced onto (the gated step's/node's model_pool must declare it)"
                       }
                     },
                     "required": [
@@ -1638,6 +2515,9 @@
           "type": "string",
           "const": "channel"
         },
+        "models": {
+          "$ref": "#/definitions/cli/properties/models"
+        },
         "agent": {
           "type": "object",
           "properties": {
@@ -1654,16 +2534,19 @@
               "exclusiveMinimum": 0
             },
             "thinking": {
-              "$ref": "#/definitions/cli/properties/agent/properties/thinking"
+              "$ref": "#/definitions/cli/properties/models/additionalProperties/properties/thinking"
+            },
+            "temperature": {
+              "$ref": "#/definitions/cli/properties/models/additionalProperties/properties/temperature"
             },
             "rate_limits": {
-              "$ref": "#/definitions/cli/properties/agent/properties/rate_limits"
+              "$ref": "#/definitions/cli/properties/models/additionalProperties/properties/rate_limits"
             },
             "model_fallbacks": {
               "$ref": "#/definitions/cli/properties/agent/properties/model_fallbacks"
             },
             "circuit_breaker": {
-              "$ref": "#/definitions/cli/properties/agent/properties/circuit_breaker"
+              "$ref": "#/definitions/cli/properties/models/additionalProperties/properties/circuit_breaker"
             },
             "model_tiers": {
               "$ref": "#/definitions/cli/properties/agent/properties/model_tiers"
@@ -1679,7 +2562,7 @@
               }
             },
             "tool_config": {
-              "$ref": "#/definitions/cli/properties/tool_config"
+              "$ref": "#/definitions/cli/properties/models/additionalProperties/properties/tool_config"
             },
             "sub_agents": {
               "$ref": "#/definitions/cli/properties/agent/properties/sub_agents"
@@ -1772,6 +2655,11 @@
                 "appSecret": {
                   "type": "string",
                   "minLength": 1
+                },
+                "verifyToken": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "shared token echoed back on Meta's GET callback-URL verification handshake; required to verify a new webhook subscription"
                 }
               },
               "required": [
@@ -1836,6 +2724,12 @@
         "hooks": {
           "$ref": "#/definitions/cli/properties/hooks"
         },
+        "expose": {
+          "$ref": "#/definitions/cli/properties/expose"
+        },
+        "plugins": {
+          "$ref": "#/definitions/cli/properties/plugins"
+        },
         "evaluation": {
           "$ref": "#/definitions/cli/properties/evaluation"
         },
@@ -1844,6 +2738,9 @@
         },
         "memory": {
           "$ref": "#/definitions/cli/properties/memory"
+        },
+        "knowledge": {
+          "$ref": "#/definitions/cli/properties/knowledge"
         },
         "continuity": {
           "$ref": "#/definitions/cli/properties/continuity"
@@ -1856,6 +2753,9 @@
         },
         "observability": {
           "$ref": "#/definitions/cli/properties/observability"
+        },
+        "watchme": {
+          "$ref": "#/definitions/cli/properties/watchme"
         },
         "heartbeat": {
           "type": "object",
@@ -1874,6 +2774,65 @@
             "instructions"
           ],
           "additionalProperties": false
+        },
+        "schedule": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "cron"
+                },
+                "cron": {
+                  "type": "string",
+                  "pattern": "^[0-9*\\/,\\-?LW#]+(?:\\s+[0-9*\\/,\\-?LW#]+){4,5}$"
+                },
+                "timezone": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "jitter": {
+                  "type": "string",
+                  "pattern": "^\\d+(?:ms|s|m|h|d)$"
+                },
+                "instructions": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "kind",
+                "cron"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "interval"
+                },
+                "every": {
+                  "type": "string",
+                  "pattern": "^\\d+(?:ms|s|m|h|d)$"
+                },
+                "jitter": {
+                  "$ref": "#/definitions/channel/properties/schedule/anyOf/0/properties/jitter"
+                },
+                "instructions": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "kind",
+                "every"
+              ],
+              "additionalProperties": false
+            }
+          ]
         },
         "gateway": {
           "type": "object",
@@ -1928,6 +2887,9 @@
           "type": "string",
           "const": "graph"
         },
+        "models": {
+          "$ref": "#/definitions/cli/properties/models"
+        },
         "model": {
           "type": "string",
           "minLength": 1
@@ -1956,7 +2918,10 @@
                     "exclusiveMinimum": 0
                   },
                   "thinking": {
-                    "$ref": "#/definitions/cli/properties/agent/properties/thinking"
+                    "$ref": "#/definitions/cli/properties/models/additionalProperties/properties/thinking"
+                  },
+                  "temperature": {
+                    "$ref": "#/definitions/cli/properties/models/additionalProperties/properties/temperature"
                   },
                   "tools": {
                     "type": "array",
@@ -1966,7 +2931,19 @@
                     }
                   },
                   "tool_config": {
-                    "$ref": "#/definitions/cli/properties/tool_config"
+                    "$ref": "#/definitions/cli/properties/models/additionalProperties/properties/tool_config"
+                  },
+                  "model_fallbacks": {
+                    "$ref": "#/definitions/cli/properties/agent/properties/model_fallbacks"
+                  },
+                  "circuit_breaker": {
+                    "$ref": "#/definitions/cli/properties/models/additionalProperties/properties/circuit_breaker"
+                  },
+                  "model_tiers": {
+                    "$ref": "#/definitions/cli/properties/agent/properties/model_tiers"
+                  },
+                  "model_pool": {
+                    "$ref": "#/definitions/cli/properties/agent/properties/model_pool"
                   },
                   "hitl": {
                     "type": "object",
@@ -2122,6 +3099,9 @@
           "type": "string",
           "const": "managed"
         },
+        "models": {
+          "$ref": "#/definitions/cli/properties/models"
+        },
         "agent": {
           "type": "object",
           "properties": {
@@ -2138,22 +3118,35 @@
               "exclusiveMinimum": 0
             },
             "thinking": {
-              "$ref": "#/definitions/cli/properties/agent/properties/thinking"
+              "$ref": "#/definitions/cli/properties/models/additionalProperties/properties/thinking"
+            },
+            "temperature": {
+              "$ref": "#/definitions/cli/properties/models/additionalProperties/properties/temperature"
             },
             "rate_limits": {
-              "$ref": "#/definitions/cli/properties/agent/properties/rate_limits"
+              "$ref": "#/definitions/cli/properties/models/additionalProperties/properties/rate_limits"
             },
             "model_fallbacks": {
               "$ref": "#/definitions/cli/properties/agent/properties/model_fallbacks"
             },
             "circuit_breaker": {
-              "$ref": "#/definitions/cli/properties/agent/properties/circuit_breaker"
+              "$ref": "#/definitions/cli/properties/models/additionalProperties/properties/circuit_breaker"
             },
             "model_tiers": {
               "$ref": "#/definitions/cli/properties/agent/properties/model_tiers"
             },
             "model_pool": {
               "$ref": "#/definitions/cli/properties/agent/properties/model_pool"
+            },
+            "tools": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "tool_config": {
+              "$ref": "#/definitions/cli/properties/models/additionalProperties/properties/tool_config"
             }
           },
           "required": [
@@ -2216,11 +3209,20 @@
         "hooks": {
           "$ref": "#/definitions/cli/properties/hooks"
         },
+        "expose": {
+          "$ref": "#/definitions/cli/properties/expose"
+        },
         "evaluation": {
           "$ref": "#/definitions/cli/properties/evaluation"
         },
+        "feedback": {
+          "$ref": "#/definitions/cli/properties/feedback"
+        },
         "memory": {
           "$ref": "#/definitions/cli/properties/memory"
+        },
+        "knowledge": {
+          "$ref": "#/definitions/cli/properties/knowledge"
         },
         "continuity": {
           "$ref": "#/definitions/cli/properties/continuity"
@@ -2233,6 +3235,12 @@
         },
         "observability": {
           "$ref": "#/definitions/cli/properties/observability"
+        },
+        "watchme": {
+          "$ref": "#/definitions/cli/properties/watchme"
+        },
+        "schedule": {
+          "$ref": "#/definitions/channel/properties/schedule"
         }
       },
       "required": [
@@ -2256,6 +3264,9 @@
           "type": "string",
           "const": "pipeline"
         },
+        "models": {
+          "$ref": "#/definitions/cli/properties/models"
+        },
         "agent": {
           "type": "object",
           "properties": {
@@ -2269,6 +3280,9 @@
             },
             "model_pool": {
               "$ref": "#/definitions/cli/properties/agent/properties/model_pool"
+            },
+            "temperature": {
+              "$ref": "#/definitions/cli/properties/models/additionalProperties/properties/temperature"
             }
           },
           "required": [
@@ -2405,6 +3419,9 @@
           "type": "string",
           "const": "crew"
         },
+        "models": {
+          "$ref": "#/definitions/cli/properties/models"
+        },
         "model": {
           "type": "string",
           "minLength": 1
@@ -2431,7 +3448,10 @@
                 "exclusiveMinimum": 0
               },
               "thinking": {
-                "$ref": "#/definitions/cli/properties/agent/properties/thinking"
+                "$ref": "#/definitions/cli/properties/models/additionalProperties/properties/thinking"
+              },
+              "temperature": {
+                "$ref": "#/definitions/cli/properties/models/additionalProperties/properties/temperature"
               },
               "tools": {
                 "type": "array",
@@ -2441,10 +3461,22 @@
                 }
               },
               "tool_config": {
-                "$ref": "#/definitions/cli/properties/tool_config"
+                "$ref": "#/definitions/cli/properties/models/additionalProperties/properties/tool_config"
               },
               "sub_agents": {
                 "$ref": "#/definitions/cli/properties/agent/properties/sub_agents"
+              },
+              "model_fallbacks": {
+                "$ref": "#/definitions/cli/properties/agent/properties/model_fallbacks"
+              },
+              "circuit_breaker": {
+                "$ref": "#/definitions/cli/properties/models/additionalProperties/properties/circuit_breaker"
+              },
+              "model_tiers": {
+                "$ref": "#/definitions/cli/properties/agent/properties/model_tiers"
+              },
+              "model_pool": {
+                "$ref": "#/definitions/cli/properties/agent/properties/model_pool"
               }
             },
             "required": [
@@ -2494,6 +3526,11 @@
               "propertyNames": {
                 "minLength": 1
               }
+            },
+            "model": {
+              "type": "string",
+              "minLength": 1,
+              "description": "0.6.0: the model (or $profile) the kind: llm router runs on"
             }
           },
           "required": [
@@ -2571,7 +3608,77 @@
           "$ref": "#/definitions/cli/properties/continuity"
         },
         "thredz": {
-          "$ref": "#/definitions/cli/properties/thredz"
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "object",
+              "properties": {
+                "api_key": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "base_url": {
+                  "$ref": "#/definitions/cli/properties/thredz/anyOf/2/properties/base_url"
+                },
+                "visibility": {
+                  "$ref": "#/definitions/cli/properties/thredz/anyOf/2/properties/visibility"
+                },
+                "space": {
+                  "$ref": "#/definitions/cli/properties/thredz/anyOf/2/properties/space"
+                },
+                "goals": {
+                  "$ref": "#/definitions/cli/properties/thredz/anyOf/2/properties/goals"
+                },
+                "agents": {
+                  "$ref": "#/definitions/cli/properties/thredz/anyOf/2/properties/agents"
+                },
+                "messaging": {
+                  "$ref": "#/definitions/cli/properties/thredz/anyOf/2/properties/messaging"
+                },
+                "roles": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "object",
+                    "properties": {
+                      "api_key": {
+                        "$ref": "#/definitions/cli/properties/thredz/anyOf/2/properties/api_key"
+                      },
+                      "base_url": {
+                        "$ref": "#/definitions/cli/properties/thredz/anyOf/2/properties/base_url"
+                      },
+                      "visibility": {
+                        "$ref": "#/definitions/cli/properties/thredz/anyOf/2/properties/visibility"
+                      },
+                      "space": {
+                        "$ref": "#/definitions/cli/properties/thredz/anyOf/2/properties/space"
+                      },
+                      "goals": {
+                        "$ref": "#/definitions/cli/properties/thredz/anyOf/2/properties/goals"
+                      },
+                      "agents": {
+                        "$ref": "#/definitions/cli/properties/thredz/anyOf/2/properties/agents"
+                      },
+                      "messaging": {
+                        "$ref": "#/definitions/cli/properties/thredz/anyOf/2/properties/messaging"
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "propertyNames": {
+                    "minLength": 1,
+                    "pattern": "^[\\w .:-]+$"
+                  }
+                }
+              },
+              "additionalProperties": false
+            }
+          ]
         },
         "learning": {
           "$ref": "#/definitions/cli/properties/learning"
@@ -2614,6 +3721,9 @@
           "type": "string",
           "const": "research"
         },
+        "models": {
+          "$ref": "#/definitions/cli/properties/models"
+        },
         "agent": {
           "type": "object",
           "properties": {
@@ -2625,6 +3735,9 @@
             },
             "model_pool": {
               "$ref": "#/definitions/cli/properties/agent/properties/model_pool"
+            },
+            "temperature": {
+              "$ref": "#/definitions/cli/properties/models/additionalProperties/properties/temperature"
             },
             "max_tokens": {
               "type": "integer",
@@ -2693,7 +3806,7 @@
           }
         },
         "tool_config": {
-          "$ref": "#/definitions/cli/properties/tool_config"
+          "$ref": "#/definitions/cli/properties/models/additionalProperties/properties/tool_config"
         },
         "mcp_servers": {
           "$ref": "#/definitions/cli/properties/mcp_servers"
@@ -2762,6 +3875,9 @@
           "type": "string",
           "const": "batch"
         },
+        "models": {
+          "$ref": "#/definitions/cli/properties/models"
+        },
         "agent": {
           "$ref": "#/definitions/research/properties/agent"
         },
@@ -2824,7 +3940,7 @@
           }
         },
         "tool_config": {
-          "$ref": "#/definitions/cli/properties/tool_config"
+          "$ref": "#/definitions/cli/properties/models/additionalProperties/properties/tool_config"
         },
         "mcp_servers": {
           "$ref": "#/definitions/cli/properties/mcp_servers"
@@ -2849,6 +3965,9 @@
         },
         "continuity": {
           "$ref": "#/definitions/cli/properties/continuity"
+        },
+        "schedule": {
+          "$ref": "#/definitions/channel/properties/schedule"
         },
         "chains": {
           "$ref": "#/definitions/cli/properties/chains"
@@ -2883,6 +4002,9 @@
         "target": {
           "type": "string",
           "const": "voice"
+        },
+        "models": {
+          "$ref": "#/definitions/cli/properties/models"
         },
         "agent": {
           "type": "object",
@@ -2968,7 +4090,7 @@
           }
         },
         "tool_config": {
-          "$ref": "#/definitions/cli/properties/tool_config"
+          "$ref": "#/definitions/cli/properties/models/additionalProperties/properties/tool_config"
         },
         "mcp_servers": {
           "$ref": "#/definitions/cli/properties/mcp_servers"
@@ -3006,6 +4128,9 @@
         "target": {
           "type": "string",
           "const": "browser"
+        },
+        "models": {
+          "$ref": "#/definitions/cli/properties/models"
         },
         "agent": {
           "$ref": "#/definitions/research/properties/agent"
@@ -3045,6 +4170,10 @@
             "startUrl": {
               "type": "string",
               "format": "uri"
+            },
+            "allowPrivateTargets": {
+              "type": "boolean",
+              "default": false
             }
           },
           "additionalProperties": false,
@@ -3062,7 +4191,7 @@
           }
         },
         "tool_config": {
-          "$ref": "#/definitions/cli/properties/tool_config"
+          "$ref": "#/definitions/cli/properties/models/additionalProperties/properties/tool_config"
         },
         "mcp_servers": {
           "$ref": "#/definitions/cli/properties/mcp_servers"
@@ -3108,6 +4237,9 @@
         "target": {
           "type": "string",
           "const": "eval"
+        },
+        "models": {
+          "$ref": "#/definitions/cli/properties/models"
         },
         "agent": {
           "type": "object",
@@ -3213,6 +4345,9 @@
         "target": {
           "type": "string",
           "const": "onchain"
+        },
+        "models": {
+          "$ref": "#/definitions/cli/properties/models"
         },
         "agent": {
           "type": "object",
@@ -3370,7 +4505,7 @@
           }
         },
         "tool_config": {
-          "$ref": "#/definitions/cli/properties/tool_config"
+          "$ref": "#/definitions/cli/properties/models/additionalProperties/properties/tool_config"
         },
         "mcp_servers": {
           "$ref": "#/definitions/cli/properties/mcp_servers"
@@ -3406,6 +4541,9 @@
         "target": {
           "type": "string",
           "const": "onchain-game"
+        },
+        "models": {
+          "$ref": "#/definitions/cli/properties/models"
         },
         "agent": {
           "type": "object",
@@ -3485,7 +4623,7 @@
           }
         },
         "tool_config": {
-          "$ref": "#/definitions/cli/properties/tool_config"
+          "$ref": "#/definitions/cli/properties/models/additionalProperties/properties/tool_config"
         },
         "mcp_servers": {
           "$ref": "#/definitions/cli/properties/mcp_servers"
